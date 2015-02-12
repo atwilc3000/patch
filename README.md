@@ -6,11 +6,11 @@ This repository provides patch files for Android and Linux AT91 platforms to bri
 
 **Supported Platforms**
 
-* SAMA5D4EK, SAMA5D4-Xplained-Ultra Android platform
-* SAMA5D3EK Android platform
-* AT91SAM9x5EK Android platform
-* AT91SAM99
-* SAM9CN11-EK, SAM9CN12-EK Linux platform
+* SAMA5D4ek, SAMA5D4-Xplained-Ultra Android platform
+* SAMA5D3ek Android platform
+* AT91SAM9x5ek Android platform
+* AT91SAM9m10g45ek Android platform
+* SAM9CN11ek, SAM9CN12ek Linux platform
 * SAMA5D3-Xplained Linux platform
 
 
