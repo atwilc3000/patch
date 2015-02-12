@@ -6,14 +6,16 @@ This repository provides patch files for Android and Linux AT91 platforms to bri
 
 **Supported Platforms**
 
-* SAMA5D4ek, SAMA5D4-Xplained-Ultra Android platform
-* SAMA5D3ek Android platform
-* AT91SAM9x5ek Android platform
-* AT91SAM9m10g45ek Android platform
-* SAM9CN11ek, SAM9CN12ek Linux platform
+* SAMA5D4-EK, SAMA5D4-Xplained-Ultra Android platform
+* SAMA5D3-EK Android platform
+* AT91SAM9x5-EK Android platform
+* AT91SAM9M10G45-EK Android platform
+* SAM9CN11-EK, SAM9CN12-EK Linux platform
 * SAMA5D3-Xplained Linux platform
-
+* AT91SAM9x5-EK Linux platform
+* AT91SAM9M10G45-EK Linux platform
+* AT91SAM9G20-EK Linux platform
 
 Refer to the [wiki](https://github.com/smartConnect/wireless-driver/wiki) to find usefull instructions and information for wireless solutions.
 
-For more information on Atmel SmartConnect, visit[Atmel SmartConnect](http://www.atmel.com/products/wireless/wifi/smart-connect.aspx).
+For more information on Atmel SmartConnect, visit [Atmel SmartConnect](http://www.atmel.com/products/wireless/wifi/smart-connect.aspx).
