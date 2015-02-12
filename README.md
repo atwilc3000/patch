@@ -2,7 +2,7 @@
 
 <a href="http://www.atmel.com"><img src="http://www.atmel.com/Images/atmel.png" align="left" hspace="10" vspace="6"></a>
 
-This repository provides patch files for Android and Linux AT91 platforms to bring up the ATWILC3000 Soc.
+This repository provides patch files for Android and Linux AT91 platforms to bring up the ATWILC3000 Soc. The Quick Start Guides are included for each platform, which descrbing how to 
 
 
 
