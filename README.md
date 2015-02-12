@@ -1,4 +1,4 @@
-# ATWILC3000 patch files for AT91SAM Android and Linux platforms 
+### ATWILC3000 patch files for AT91SAM Android and Linux platforms 
 
 <a href="http://www.atmel.com"><img src="http://www.atmel.com/Images/atmel.png" align="left" hspace="10" vspace="6"></a>
 
