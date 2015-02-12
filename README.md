@@ -4,6 +4,10 @@
 
 This repository provides patch files for Android and Linux AT91 platforms to bring up the ATWILC3000 Soc.
 
+
+
+
+
 **Supported Platforms**
 
 * SAMA5D4ek, SAMA5D4-Xplained-Ultra Android platform
