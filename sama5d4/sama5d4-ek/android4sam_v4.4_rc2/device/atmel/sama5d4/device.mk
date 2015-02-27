@@ -69,7 +69,7 @@ PRODUCT_PACKAGES += \
 	wifi_firmware_p2p_concurrency.bin \
 	wifi_firmware.bin \
 	wifi_firmware_ap.bin \
-	bt_fw_BR921600_FC_Off.bin \
+	bt_fw_BR921600_FC_13_21.bin \
 	iwlist \
 	iwconfig
 # end wilc3000
