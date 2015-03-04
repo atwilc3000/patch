@@ -34,13 +34,6 @@
 #include "bt_vendor.h"
 #include "userial.h"
 #include "userial_vendor.h"
-#include <linux/serial_core.h>
-//serial.h to get struct serial_struct. Include dependent on the kernel's locaiton to avoid copying
-// the struct definition, then have logical errors in case the header was changed in the kernel
-//#include "../../../../../../../a31/lichee/linux-3.3/include/linux/serial.h"
-//#include "../../../../../../linux-at91/include/uapi/linux/serial.h"
-//#include "../../../../../../linux-at91/include/uapi/linux/tty_flags.h"
-#include "at_log.h"
 
 /******************************************************************************
 **  Constants & Macros
@@ -232,7 +225,7 @@ void userial_vendor_init(void)
 	vnd_userial.is_powersave_enabled = 0;
 	vnd_userial.powersave_timeout = 50;
 }
-#if 1
+
 #define ASYNCB_SPD_HI		 4 /* Use 56000 instead of 38400 bps */
 #define ASYNCB_SPD_VHI		 5 /* Use 115200 instead of 38400 bps */
 #define ASYNCB_SPD_SHI		12 /* Use 230400 instead of 38400 bps */
@@ -265,7 +258,7 @@ struct serial_struct
 	unsigned int	port_high;
 	unsigned long	iomap_base;	/* cookie passed into ioremap */
 };
-#endif
+
 /*******************************************************************************
 **
 ** Function        userial_vendor_open
@@ -281,17 +274,9 @@ int userial_vendor_open(tUSERIAL_CFG *p_cfg)
     uint8_t data_bits;
     uint16_t parity;
     uint8_t stop_bits;
-	uint32_t baudrate;
-	uint32_t closestSpeed;
-	struct serial_struct ss;
 
     vnd_userial.fd = -1;
 
-	if (!userial_to_tcio_baud(line_speed_to_userial_baud(vnd_userial.fw_op_baudrate), &baud))
-		{
-			return -1;
-		}
-			
     if(p_cfg->fmt & USERIAL_DATABITS_8)
         data_bits = CS8;
     else if(p_cfg->fmt & USERIAL_DATABITS_7)
@@ -328,6 +313,8 @@ int userial_vendor_open(tUSERIAL_CFG *p_cfg)
         return -1;
     }
 
+	ALOGI("userial vendor open: opening %s", vnd_userial.port_name);
+	
     if ((vnd_userial.fd = open(vnd_userial.port_name, O_RDWR)) == -1)
     {
         ALOGE("userial vendor open: unable to open %s", vnd_userial.port_name);
@@ -336,52 +323,34 @@ int userial_vendor_open(tUSERIAL_CFG *p_cfg)
 
     tcflush(vnd_userial.fd, TCIOFLUSH);
 
-	baudrate = vnd_userial.fw_op_baudrate;
-	
-	/*
-		Ticket #878
-		Allwinner A31 works at a maximum of ~714280bps. Faster baudrates needs to use custom baudrate.
-		Linux uses a weird way of setting custom baudrates; the port's baud rates needs to be set to  B38400,
-		then the divisor should be set to change the port's baud_base (1500000 in our case) to the required baudrate.
-	*/
-	ioctl(vnd_userial.fd, TIOCGSERIAL, &ss);
-	if((baudrate > 460800) || 
-		(!userial_to_tcio_baud(line_speed_to_userial_baud(baudrate), &baud)))
+	if (!userial_to_tcio_baud(p_cfg->baud, &baud))
 	{
+		uint32_t expectedbaudrate;
+		uint32_t actualbaudrate;
+		struct serial_struct ss;
+		float error;
+		
 	    // configure port to use custom speed instead of 38400
-		if(1)//(baud > ((unsigned int)ss.baud_base))
-		{
-			ss.flags = (ss.flags & ~ASYNC_SPD_MASK) | ASYNC_SPD_CUST;
-			ss.custom_divisor = (ss.baud_base + (baudrate / 2)) / baudrate; // All examples on the internet are using this formula, but i don't get the (speed/2) part!
-			//ss.custom_divisor = (ss.baud_base) / baudrate;
-			closestSpeed = ss.baud_base / ss.custom_divisor;
-
-			if ((closestSpeed < baudrate * 98 / 100) || 
-				(closestSpeed > baudrate * 102 / 100))
-			{
-			    ALOGE("<Atmel> Cannot set serial port speed to %d. Closest possible is %d", baudrate, closestSpeed);
-			}
-			ALOGD("<Atmel> Setting uart baud_base: %d custom_divisor to %d, closest speed: %d", ss.baud_base, ss.custom_divisor, closestSpeed);
-
-			baud = B38400;
-		}
-		else
-		{
-			ALOGE("<Atmel> requested baud rate %d is > maximum baud rate baud_base: %d", baudrate, ss.baud_base);
-			close(vnd_userial.fd);
+	    if(ioctl(vnd_userial.fd, TIOCGSERIAL, &ss) < 0) {
+			ALOGE("<Atmel> Cannot get serial port");
 			return -1;
 		}
-	}
-	else
-	{
-		ss.flags = (ss.flags & ~ASYNC_SPD_MASK);
-		ss.custom_divisor = 0;
-	}
-	ioctl(vnd_userial.fd, TIOCSSERIAL, &ss);
-	
-	ALOGI("userial vendor open: opening %s, baud rate: %d, flow control: %d, buad: %d", 
-		vnd_userial.port_name, baudrate, vnd_userial.flow_control, baud);
+		expectedbaudrate = vnd_userial.fw_op_baudrate;
+		ss.flags = (ss.flags & ~ASYNC_SPD_MASK) | ASYNC_SPD_CUST;
+		ss.custom_divisor = (ss.baud_base + (expectedbaudrate / 2)) / expectedbaudrate; 
+		actualbaudrate = ss.baud_base / ss.custom_divisor;
 
+		if(ioctl(vnd_userial.fd, TIOCSSERIAL, &ss) < 0) {
+			ALOGE("<Atmel> Cannot set serial port");
+			return -1;
+		}
+
+		baud = B38400;
+		error = 1 - (expectedbaudrate/actualbaudrate);
+		ALOGI("Expected baud rate: %d, Actual baud rate: %d, custom_divisor: %d, baud_base: %d, error: %f", 
+			expectedbaudrate, actualbaudrate, ss.custom_divisor, ss.baud_base, actualbaudrate);
+	}
+	
     tcgetattr(vnd_userial.fd, &vnd_userial.termios);
     cfmakeraw(&vnd_userial.termios);
 
@@ -459,7 +428,7 @@ void userial_vendor_set_baud(uint8_t userial_baud)
     uint32_t tcio_baud;
 
     userial_to_tcio_baud(userial_baud, &tcio_baud);
-	AT_DBG("Setting baud rate to %d", userial_baud);
+	//AT_DBG("Setting baud rate to %d", userial_baud);
 
     cfsetospeed(&vnd_userial.termios, tcio_baud);
     cfsetispeed(&vnd_userial.termios, tcio_baud);

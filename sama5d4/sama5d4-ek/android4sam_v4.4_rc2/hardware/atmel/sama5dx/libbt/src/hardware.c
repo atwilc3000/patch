@@ -68,6 +68,7 @@
 
 #define HCI_CMD_MAX_LEN             258
 
+#if 0
 #define HCI_RESET									0x0C03
 //#define HCI_VSC_WRITE_UART_CLOCK_SETTING			0xFC45
 //#define HCI_VSC_UPDATE_BAUDRATE					0xFC18
@@ -97,6 +98,32 @@
 #define BD_ADDR_LEN                             6
 #define LOCAL_NAME_BUFFER_LEN                   32
 #define LOCAL_BDADDR_PATH_BUFFER_LEN            256
+#else
+#define HCI_RESET                               0x0C03
+#define HCI_VSC_WRITE_UART_CLOCK_SETTING        0xFC45
+#define HCI_VSC_UPDATE_BAUDRATE                 0xFC18
+#define HCI_READ_LOCAL_NAME                     0x0C14
+#define HCI_VSC_DOWNLOAD_MINIDRV                0xFC2E
+#define HCI_VSC_WRITE_BD_ADDR                   0xFC01
+#define HCI_VSC_WRITE_SLEEP_MODE                0xFC27
+#define HCI_VSC_WRITE_SCO_PCM_INT_PARAM         0xFC1C
+#define HCI_VSC_WRITE_PCM_DATA_FORMAT_PARAM     0xFC1E
+#define HCI_VSC_WRITE_I2SPCM_INTERFACE_PARAM    0xFC6D
+#define HCI_VSC_LAUNCH_RAM                      0xFC4E
+#define HCI_READ_LOCAL_BDADDR                   0x1009
+
+#define HCI_EVT_CMD_CMPL_STATUS_RET_BYTE        5
+#define HCI_EVT_CMD_CMPL_LOCAL_NAME_STRING      6
+#define HCI_EVT_CMD_CMPL_LOCAL_BDADDR_ARRAY     6
+#define HCI_EVT_CMD_CMPL_OPCODE                 3
+#define LPM_CMD_PARAM_SIZE                      12
+#define UPDATE_BAUDRATE_CMD_PARAM_SIZE          6
+#define HCI_CMD_PREAMBLE_SIZE                   3
+#define HCD_REC_PAYLOAD_LEN_BYTE                2
+#define BD_ADDR_LEN                             6
+#define LOCAL_NAME_BUFFER_LEN                   32
+#define LOCAL_BDADDR_PATH_BUFFER_LEN            256
+#endif
 
 #define STREAM_TO_UINT16(u16, p) {u16 = ((uint16_t)(*(p)) + (((uint16_t)(*((p) + 1))) << 8)); (p) += 2;}
 #define UINT16_TO_STREAM(p, u16) {*(p)++ = (uint8_t)(u16); *(p)++ = (uint8_t)((u16) >> 8);}
@@ -718,7 +745,7 @@ void hw_config_cback(void *p_mem)
             case HW_CFG_START:
                 if (UART_TARGET_BAUD_RATE > 3000000)
                 {
-                #if 0
+                #if 1
                     /* set UART clock to 48MHz */
                     UINT16_TO_STREAM(p, HCI_VSC_WRITE_UART_CLOCK_SETTING);
                     *p++ = 1; /* parameter length */
@@ -973,6 +1000,7 @@ void hw_config_start(void)
 	ALOGI("Atmel: local bd address: %02x:%02x:%02x:%02x:%02x:%02x:", 
 		vnd_local_bd_addr[0],vnd_local_bd_addr[1],vnd_local_bd_addr[2],
 		vnd_local_bd_addr[3],vnd_local_bd_addr[4],vnd_local_bd_addr[5]);
+	
 	if(vnd_userial.enable_bdaddress_change != 0)
 	{
 		hw_config_set_bdaddr(vnd_userial.bd_addr);
@@ -980,7 +1008,6 @@ void hw_config_start(void)
 	}
 	
 	bt_vendor_cbacks->fwcfg_cb(BT_VND_OP_RESULT_SUCCESS);
-
 }
 
 static uint8_t hw_config_reset(void)

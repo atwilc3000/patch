@@ -65,7 +65,7 @@
 #endif
 
 #ifndef UART_TARGET_BAUD_RATE
-#define UART_TARGET_BAUD_RATE           921600
+#define UART_TARGET_BAUD_RATE           1375000/*3000000*/
 #endif
 
 /* The millisecond delay pauses on HCI transport after firmware patches

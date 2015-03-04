@@ -83,6 +83,7 @@
 typedef struct
 {
     uint16_t fmt;       /* Data format */
+	uint8_t baud;		/* Baud rate */
 } tUSERIAL_CFG;
 
 typedef enum {

@@ -70,9 +70,14 @@ uint8_t vnd_local_bd_addr[6]={0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 **  Static Variables
 ******************************************************************************/
 
+/*
+* if no baud rate in userial_vendor.h, set USERIAL_BAUD_AUTO
+*/
+
 static const tUSERIAL_CFG userial_init_cfg =
  {
     (USERIAL_DATABITS_8 | USERIAL_PARITY_NONE | USERIAL_STOPBITS_1),
+	USERIAL_BAUD_AUTO	
  };
 
 /******************************************************************************
@@ -145,16 +150,20 @@ static int op(bt_vendor_opcode_t opcode, void *param)
 		 *      None.
 		 */
                 int *state = (int *) param;
-                if (*state == BT_VND_PWR_OFF)
+				
+                if (*state == BT_VND_PWR_OFF) {
+					ALOGI("________BT_VND_OP_POWER_CTRL: UPIO_BT_POWER_OFF");
                     upio_set_bluetooth_power(UPIO_BT_POWER_OFF);
+                }
                 else if (*state == BT_VND_PWR_ON)
                 {
+                	ALOGI("________BT_VND_OP_POWER_CTRL: UPIO_BT_POWER_ON");
 	                upio_set_bluetooth_power(UPIO_BT_POWER_ON);
-					if(vnd_userial.android_bt_fw_download != 0)
+					if(vnd_userial.android_bt_fw_download != 0)	/* we need this flag ????, tony */
 		 			{	
 			 			ms_delay(50);
 						upio_set_bluetooth_power(UPIO_BT_FIRMWARE_DOWNLOAD);
-						ms_delay(300);
+						ms_delay(500);
                 	}
                 }
             }
@@ -173,9 +182,10 @@ static int op(bt_vendor_opcode_t opcode, void *param)
 		 *      Must call fwcfg_cb to notify the stack of the completion of vendor
 		 *      specific initialization once it has been done.
 		 */
-				
-				ALOGI("Download bt firmware:Will config hw!!");
-				hw_config_start();
+				ALOGI("________BT_VND_OP_FW_CFG");
+				//ALOGI("Download bt firmware:Will config hw!!");
+				//hw_config_start();
+				bt_vendor_cbacks->fwcfg_cb(BT_VND_OP_RESULT_SUCCESS);
             }
             break;
 
@@ -192,17 +202,7 @@ static int op(bt_vendor_opcode_t opcode, void *param)
 		 *      Must call scocfg_cb to notify the stack of the completion of vendor
 		 *      specific SCO configuration once it has been done.
 		 */
-		 
-#if (SCO_CFG_INCLUDED == TRUE)
-
-		// for now we don't use SCO, in future we shall add SCO specific init here
-		// TODO: add SCO bus specific initialization here
-		
-                //hw_sco_config();
-                bt_vendor_cbacks->scocfg_cb(BT_VND_OP_RESULT_SUCCESS); //dummy
-#else
-                retval = -1;
-#endif
+		 		bt_vendor_cbacks->scocfg_cb(BT_VND_OP_RESULT_SUCCESS); //dummy
             }
             break;
 
@@ -296,38 +296,15 @@ static int op(bt_vendor_opcode_t opcode, void *param)
 		 *      Must call lpm_cb to notify the stack of the completion of LPM
 		 *      disable/enable process once it has been done.
 		 */
-                uint8_t *mode = (uint8_t *) param;
-                retval = hw_lpm_enable(*mode);
+                bt_vendor_cbacks->lpm_cb(BT_VND_OP_RESULT_SUCCESS); 
             }
             break;
 
         case BT_VND_OP_LPM_WAKE_SET_STATE:
-            {
-		/*  [operation]
-		 *      Assert or Deassert LPM WAKE on BT Controller.
-		 *  [input param]
-		 *      A pointer to uint8_t type with content of bt_vendor_lpm_wake_state_t.
-		 *      Typecasting conversion: (uint8_t *) param.
-		 *  [return]
-		 *      0 - default, don't care.
-		 *  [callback]
-		 *      None.
-		 */
-                uint8_t *state = (uint8_t *) param;
-                uint8_t wake_assert = (*state == BT_VND_LPM_WAKE_ASSERT) ? \
-                                        TRUE : FALSE;
-
-                hw_lpm_set_wake_state(wake_assert);
-            }
             break;
 
 		case BT_VND_OP_EPILOG:
 		{
-			// reply for epilog to avoid making bluedroid wait for EPILOG_TIMEOUT_MS before cleaning
-			// This will make exit faster
-			// We can do any exit specific commands here before close is called.
-			ALOGI("Atmel: BT_VND_OP_EPILOG");
-			// Set the UART parameters of the running FW to be same as bootrom
 			bt_vendor_cbacks->epilog_cb(BT_VND_OP_RESULT_SUCCESS);
 		}
 		break;
