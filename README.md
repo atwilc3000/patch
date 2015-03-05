@@ -16,6 +16,6 @@ This repository provides patch files for Android and Linux AT91 platforms to bri
 * AT91SAM9M10G45-EK Linux platform
 * AT91SAM9G20-EK Linux platform
 
-Refer to the [wiki](https://github.com/smartConnect/wireless-driver/wiki) to find usefull instructions and information for wireless solutions.
+See the [Quick Start Guide](https://github.com/atwilc3000/driver/wiki/quick-start-guide). Refer also to the [wiki](https://github.com/smartConnect/wireless-driver/wiki) to find usefull instructions and information for wireless solutions. 
 
 For more information on Atmel SmartConnect, visit [Atmel SmartConnect](http://www.atmel.com/products/wireless/wifi/smart-connect.aspx).
