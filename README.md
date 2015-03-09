@@ -7,14 +7,9 @@ This repository provides patch files for Android and Linux AT91 platforms to bri
 **Supported Platforms**
 
 * SAMA5D4-EK, SAMA5D4-Xplained-Ultra Android platform
-* SAMA5D3-EK Android platform
-* AT91SAM9x5-EK Android platform
-* AT91SAM9M10G45-EK Android platform
+* SAMA5D36-EK Android platform
 * SAM9CN11-EK, SAM9CN12-EK Linux platform
 * SAMA5D3-Xplained Linux platform
-* AT91SAM9x5-EK Linux platform
-* AT91SAM9M10G45-EK Linux platform
-* AT91SAM9G20-EK Linux platform
 
 See the [Quick Start Guide](https://github.com/atwilc3000/driver/wiki/quick-start-guide). Refer also to the [wiki](https://github.com/smartConnect/wireless-driver/wiki) to find usefull instructions and information for wireless solutions. 
 
