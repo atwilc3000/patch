@@ -220,7 +220,7 @@ void disable_sdio_interrupt(void){
 
 static int linux_sdio_set_speed(int speed)
 {
-#if 1
+#if 0
 	struct mmc_ios ios;
 	sdio_claim_host(local_sdio_func);
 	
