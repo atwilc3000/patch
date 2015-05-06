@@ -36,8 +36,11 @@
 ******************************************************************************/
 int userial_set_port(char *p_conf_name, char *p_conf_value, int param);
 int userial_set_fw_op_baudrate(char *p_conf_name, char *p_conf_value, int param);
+int userial_set_fw_dwnld_baudrate(char *p_conf_name, char *p_conf_value, int param);
 int userial_set_flow_control(char *p_conf_name, char *p_conf_value, int param);
-int userial_set_bt_fw_download_flag(char *p_conf_name, char *p_conf_value, int param);
+int userial_set_bt_fw_download_uart_flag(char *p_conf_name, char *p_conf_value, int param);
+int userial_set_bt_fw_download_sdio_flag(char *p_conf_name, char *p_conf_value, int param);
+int userial_set_bootrom_baudrate(char *p_conf_name, char *p_conf_value, int param);
 int hw_set_patch_file_path(char *p_conf_name, char *p_conf_value, int param);
 int hw_set_patch_file_name(char *p_conf_name, char *p_conf_value, int param);
 int userial_set_bt_bd_addr(char *p_conf_name, char *p_conf_value, int param);
@@ -75,8 +78,11 @@ typedef struct {
  */
 static const conf_entry_t conf_table[] = {
     {"UartPort", userial_set_port, 0},
+    {"BootRomBaudRate", userial_set_bootrom_baudrate, 0},
 	{"FwOpBaudRate", userial_set_fw_op_baudrate, 0},
-	{"AndroidBtFwDownload", userial_set_bt_fw_download_flag, 0},
+	{"FwDwnldBaudRate", userial_set_fw_dwnld_baudrate, 0},
+	{"AndroidBtFwDownloadUART", userial_set_bt_fw_download_uart_flag, 0},
+	{"AndroidBtFwDownloadSDIO", userial_set_bt_fw_download_sdio_flag, 0},
 	{"UartFlowControl", userial_set_flow_control, 0},
     {"FwPatchFilePath", hw_set_patch_file_path, 0},
     {"FwPatchFileName", hw_set_patch_file_name, 0},
@@ -150,7 +156,6 @@ void vnd_load_conf(const char *p_path)
                 p_entry++;
             }
         }
-
         fclose(p_file);
     }
     else

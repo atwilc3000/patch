@@ -23,8 +23,6 @@ $(call inherit-product-if-exists, frameworks/base/data/sounds/AllAudio.mk)
 
 LOCAL_PATH := device/atmel/sama5d4
 
-
-
 PRODUCT_COPY_FILES += \
         $(LOCAL_PATH)/init.rc:root/init.rc \
         $(LOCAL_PATH)/init.sama5-ek.rc:root/init.sama5-ek.rc \
@@ -69,9 +67,11 @@ PRODUCT_PACKAGES += \
 	wifi_firmware_p2p_concurrency.bin \
 	wifi_firmware.bin \
 	wifi_firmware_ap.bin \
-	bt_fw_BR1375000_FC_13_21.bin \
+	bt_firmware.bin \
 	iwlist \
-	iwconfig
+	iwconfig \
+	busybox \
+	iperf
 # end wilc3000
 
 # These are the hardware-specific features

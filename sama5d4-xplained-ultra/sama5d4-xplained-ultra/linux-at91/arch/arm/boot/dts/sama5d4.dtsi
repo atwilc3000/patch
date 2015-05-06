@@ -390,7 +390,7 @@
 					(AT91_XDMAC_DT_PERID(21) | AT91_XDMAC_DT_DWIDTH(0x0))>;
 				dma-names = "tx", "rx";
 				pinctrl-names = "default";
-				pinctrl-0 = <&pinctrl_usart4 &pinctrl_usart4_rts &pinctrl_usart4_cts>;
+				pinctrl-0 = <&pinctrl_usart4>;
 				status = "disabled";
 			};
 

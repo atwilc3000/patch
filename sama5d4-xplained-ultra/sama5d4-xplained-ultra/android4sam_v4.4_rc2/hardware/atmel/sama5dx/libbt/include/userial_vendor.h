@@ -83,7 +83,6 @@
 typedef struct
 {
     uint16_t fmt;       /* Data format */
-	uint8_t baud;		/* Baud rate */
 } tUSERIAL_CFG;
 
 typedef enum {
@@ -103,12 +102,14 @@ typedef struct
     int fw_op_baudrate;
 	int fw_dwnld_baudrate;
 	int	bootrom_baudrate;
-	char android_bt_fw_download;
+	char android_bt_fw_download_uart;
+	char android_bt_fw_download_sdio;
     char flow_control;
 	char bd_addr[6];
 	int enable_bdaddress_change;
 	int is_powersave_enabled;
 	int powersave_timeout;
+	uint32_t actual_baud;
 } vnd_userial_cb_t;
 
 /******************************************************************************
@@ -161,7 +162,7 @@ void userial_vendor_close(void);
 ** Returns         None
 **
 *******************************************************************************/
-void userial_vendor_set_baud(uint8_t userial_baud);
+void userial_vendor_set_baud(uint32_t userial_baud);
 
 /*******************************************************************************
 **

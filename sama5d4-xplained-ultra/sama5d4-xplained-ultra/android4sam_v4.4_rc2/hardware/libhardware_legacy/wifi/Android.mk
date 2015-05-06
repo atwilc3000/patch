@@ -28,7 +28,7 @@ endif
 ifeq ($(BOARD_WIFI_VENDOR), realtek)
 LOCAL_SRC_FILES += ../realtek/wlan/libhardware_legacy/wifi/wifi_realtek.c
 else
-#newportinc wifi module
+#Atmel wifi module
 ifeq ($(BOARD_WIFI_VENDOR), atmel)
 LOCAL_CFLAGS += -DWILC3000_WIFI_USED
 endif

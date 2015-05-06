@@ -56,7 +56,6 @@ endif
 
 include $(CLEAR_VARS)
 LOCAL_MODULE := lib_driver_cmd_nmc
-$(warning *** atmel DEBUG, LOCAL_MODULE = $(LOCAL_MODULE) ***)
 
 LOCAL_SHARED_LIBRARIES := libc libcutils
 LOCAL_CFLAGS := $(L_CFLAGS)

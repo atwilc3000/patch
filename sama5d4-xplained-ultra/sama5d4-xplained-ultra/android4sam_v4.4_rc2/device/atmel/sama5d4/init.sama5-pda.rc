@@ -50,7 +50,7 @@ on boot
    chmod 0777 /sys/class/backlight/backlight/brightness
    chown system system /sys/class/backlight/backlight/brightness
 
-
+   chown bluetooth net_bt_stack  /dev/at_pwr_dev
    insmod /system/lib/modules/wilc3000.ko
 
 # Add for bluetooth
@@ -58,7 +58,8 @@ on boot
 #UART device
 	chmod 0660 /dev/ttyS1
 	chown bluetooth net_bt_stack /dev/ttyS1
-	chown bluetooth net_bt_stack /dev/at_bt_pwr
+	chmod 0660 /dev/ttyUSB0
+	chown bluetooth net_bt_stack /dev/ttyUSB0
 
 
 # Disable touch calibration,PDA dm touch do not need calibration.

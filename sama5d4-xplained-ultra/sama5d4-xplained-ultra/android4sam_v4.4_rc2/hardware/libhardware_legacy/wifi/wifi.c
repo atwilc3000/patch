@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-  
+
 #include <stdlib.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -230,7 +230,7 @@ int is_wifi_driver_loaded() {
     return 1;
 #endif
 }
-
+#define TIME_COUNT 20 // 200ms*20 = 4 seconds for completion
 int wifi_load_driver()
 {
 #ifdef WIFI_DRIVER_MODULE_PATH
@@ -880,8 +880,6 @@ int wifi_change_fw_path(const char *fwpath)
     int len;
     int fd;
     int ret = 0;
-
-    ALOGD("Eneter: %s, fwpath = %s.\n", __FUNCTION__, fwpath);
 
 #ifndef WILC3000_WIFI_USED
     if (!fwpath)

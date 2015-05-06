@@ -62,9 +62,9 @@
 #endif
 #endif
 
-#define AT_CMD_POWER_UP		"BT_POWER_UP"
-#define AT_CMD_DOWNLOAD_FW	"BT_DOWNLOAD_FW"
-#define AT_CMD_POWER_DOWN	"BT_POWER_DOWN"
+#define AT_CMD_POWER_UP			"BT_POWER_UP"
+#define AT_CMD_DOWNLOAD_FW		"BT_DOWNLOAD_FW"
+#define AT_CMD_POWER_DOWN		"BT_POWER_DOWN"
 
 
 /******************************************************************************
@@ -74,7 +74,7 @@
 static uint8_t upio_state[UPIO_MAX_COUNT];
 static int rfkill_id = -1;
 static int bt_emul_enable = 0;
-static char power_dev_path[] = "/dev/at_bt_pwr";
+static char power_dev_path[] = "/dev/at_pwr_dev";
 
 /******************************************************************************
 **  Static functions

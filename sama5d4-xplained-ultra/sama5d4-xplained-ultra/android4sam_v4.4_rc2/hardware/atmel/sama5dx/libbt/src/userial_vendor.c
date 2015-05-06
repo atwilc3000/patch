@@ -31,9 +31,18 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
 #include "bt_vendor.h"
 #include "userial.h"
 #include "userial_vendor.h"
+#include <linux/serial_core.h>
+//serial.h to get struct serial_struct. Include dependent on the kernel's locaiton to avoid copying
+// the struct definition, then have logical errors in case the header was changed in the kernel
+//#include "../../../../../../../a31/lichee/linux-3.3/include/linux/serial.h"
+//#include "../../../../../../linux-at91/include/uapi/linux/serial.h"
+//#include "../../../../../../linux-at91/include/uapi/linux/tty_flags.h"
+#include "at_log.h"
 
 /******************************************************************************
 **  Constants & Macros
@@ -162,7 +171,7 @@ uint8_t line_speed_to_userial_baud(uint32_t line_speed)
     else
     {
         ALOGE( "userial vendor: unsupported baud speed %d", line_speed);
-        baud = USERIAL_BAUD_115200;
+        return -1;
     }
 
     return baud;
@@ -210,10 +219,13 @@ void userial_vendor_init(void)
     vnd_userial.fd = -1;
     //snprintf(vnd_userial.port_name, VND_PORT_NAME_MAXLEN, "%s", \
     //        BLUETOOTH_UART_DEVICE_PORT);
-	vnd_userial.android_bt_fw_download= 0;
-    vnd_userial.flow_control = 0;
+	vnd_userial.android_bt_fw_download_uart = 0;
+	vnd_userial.android_bt_fw_download_sdio = 0;
+	vnd_userial.flow_control= 0;
+	vnd_userial.bootrom_baudrate = 115200;
+	vnd_userial.fw_dwnld_baudrate = 921600;
 	vnd_userial.fw_op_baudrate = 921600;
-	strcpy(vnd_userial.port_name, "/dev/ttyS2");
+	strcpy(vnd_userial.port_name, "/dev/ttyUSB0");
 	vnd_userial.bd_addr[0]=0x1;
 	vnd_userial.bd_addr[1]=0x23;
 	vnd_userial.bd_addr[2]=0x45;
@@ -224,8 +236,15 @@ void userial_vendor_init(void)
 	
 	vnd_userial.is_powersave_enabled = 0;
 	vnd_userial.powersave_timeout = 50;
+	vnd_userial.actual_baud=0;
+	if((vnd_userial.android_bt_fw_download_uart == 1) && 
+		(vnd_userial.android_bt_fw_download_sdio == 1))
+	{
+		ALOGW("Both download using UART and download using SDIO can't be enabled at the same time. Will use download from SDIO\n");
+		vnd_userial.android_bt_fw_download_uart;
+	}
 }
-
+#if 1
 #define ASYNCB_SPD_HI		 4 /* Use 56000 instead of 38400 bps */
 #define ASYNCB_SPD_VHI		 5 /* Use 115200 instead of 38400 bps */
 #define ASYNCB_SPD_SHI		12 /* Use 230400 instead of 38400 bps */
@@ -258,7 +277,72 @@ struct serial_struct
 	unsigned int	port_high;
 	unsigned long	iomap_base;	/* cookie passed into ioremap */
 };
+#endif
+int get_closest_baud_rate(uint32_t target_baud_rate ,uint32_t* baud)
+{
+	uint32_t baudrate= target_baud_rate;
+	uint32_t closestSpeed;
+	struct serial_struct ss;
+	double temp_calc;
+	/*
+		Ticket #1013
+		SAMA5D4 works at a maximum of ~921600bps. Faster baudrates needs to use custom baudrate.
+		Linux uses a weird way of setting custom baudrates; the port's baud rates needs to be set to  B38400,
+		then the divisor should be set to change the port's baud_base (5500000 in our case) to the required baudrate.
+	*/
+	ioctl(vnd_userial.fd, TIOCGSERIAL, &ss);
+	if(baudrate >921600||!(userial_to_tcio_baud(line_speed_to_userial_baud(baudrate), baud)))
+	{
+		ALOGI("Get the closest custom baudrate to %d",target_baud_rate);
+	    // configure port to use custom speed instead of 38400
+		if(baudrate < ((unsigned int)ss.baud_base))
+		{
+			ss.flags = (ss.flags & ~ASYNC_SPD_MASK) | ASYNC_SPD_CUST;
+			//ss.custom_divisor = (ss.baud_base + (speed / 2)) / speed; // All examples on the internet are using this formula, but i don't get the (speed/2) part!
+			temp_calc=baudrate;
+			ss.custom_divisor=(int)round((ss.baud_base) / temp_calc);
 
+			/*
+			The lowest allowed divisor is 2 , Since ATWILC3000 doesn't support 5.5 Mbps 
+			which is the case for a baud_base=5.5 Mbps and divisor=1
+			*/
+			if(ss.custom_divisor<2)
+			{
+				ss.custom_divisor=2;
+				ALOGI("Set baudrate to the maximum custom baudrate  2.75 Mbps");
+			}
+
+	
+			closestSpeed = ss.baud_base / ss.custom_divisor;
+
+			if ((closestSpeed < baudrate * 98 / 100) ||
+				(closestSpeed > baudrate * 102 / 100))
+			{
+			    ALOGE("<Atmel> Cannot set serial port speed to %d. Closest possible is %d", baudrate, closestSpeed);
+			}
+			ALOGD("<Atmel> Setting uart baud_base: %d custom_divisor to %d, closest speed: %d", ss.baud_base, ss.custom_divisor, closestSpeed);
+
+			*baud = B38400;
+		}
+		else
+		{
+			ALOGE("<Atmel> requested baud rate %d is > maximum baud rate baud_base: %d", baudrate, ss.baud_base);
+			close(vnd_userial.fd);
+			return -1;
+		}
+	}
+	else
+	{
+	 	closestSpeed=baudrate;
+	 	ss.flags = (ss.flags & ~ASYNC_SPD_MASK);
+		ss.custom_divisor = 0;
+	}
+	ioctl(vnd_userial.fd, TIOCSSERIAL, &ss);
+	
+	ALOGI("Baud rate: %d",closestSpeed);
+	
+	return closestSpeed;
+}
 /*******************************************************************************
 **
 ** Function        userial_vendor_open
@@ -270,13 +354,18 @@ struct serial_struct
 *******************************************************************************/
 int userial_vendor_open(tUSERIAL_CFG *p_cfg)
 {
-    uint32_t baud;
     uint8_t data_bits;
     uint16_t parity;
     uint8_t stop_bits;
+	uint32_t baudrate;
+	uint32_t closestSpeed;
+	struct serial_struct ss;
+	double temp_calc;
+	//vnd_userial.fw_op_baudrate = 921600;
+	//strcpy(vnd_userial.port_name, "/dev/ttyUSB0");
 
     vnd_userial.fd = -1;
-
+	
     if(p_cfg->fmt & USERIAL_DATABITS_8)
         data_bits = CS8;
     else if(p_cfg->fmt & USERIAL_DATABITS_7)
@@ -313,8 +402,6 @@ int userial_vendor_open(tUSERIAL_CFG *p_cfg)
         return -1;
     }
 
-	ALOGI("userial vendor open: opening %s", vnd_userial.port_name);
-	
     if ((vnd_userial.fd = open(vnd_userial.port_name, O_RDWR)) == -1)
     {
         ALOGE("userial vendor open: unable to open %s", vnd_userial.port_name);
@@ -322,39 +409,24 @@ int userial_vendor_open(tUSERIAL_CFG *p_cfg)
     }
 
     tcflush(vnd_userial.fd, TCIOFLUSH);
-
-	if (!userial_to_tcio_baud(p_cfg->baud, &baud))
+	if(vnd_userial.android_bt_fw_download_uart)
 	{
-		uint32_t expectedbaudrate;
-		uint32_t actualbaudrate;
-		struct serial_struct ss;
-		float error;
-		
-	    // configure port to use custom speed instead of 38400
-	    if(ioctl(vnd_userial.fd, TIOCGSERIAL, &ss) < 0) {
-			ALOGE("<Atmel> Cannot get serial port");
-			return -1;
-		}
-		expectedbaudrate = vnd_userial.fw_op_baudrate;
-		ss.flags = (ss.flags & ~ASYNC_SPD_MASK) | ASYNC_SPD_CUST;
-		ss.custom_divisor = (ss.baud_base + (expectedbaudrate / 2)) / expectedbaudrate; 
-		actualbaudrate = ss.baud_base / ss.custom_divisor;
-
-		if(ioctl(vnd_userial.fd, TIOCSSERIAL, &ss) < 0) {
-			ALOGE("<Atmel> Cannot set serial port");
-			return -1;
-		}
-
-		baud = B38400;
-		error = 1 - (expectedbaudrate/actualbaudrate);
-		ALOGI("Expected baud rate: %d, Actual baud rate: %d, custom_divisor: %d, baud_base: %d, error: %f", 
-			expectedbaudrate, actualbaudrate, ss.custom_divisor, ss.baud_base, actualbaudrate);
-	}
 	
+		baudrate=get_closest_baud_rate(vnd_userial.bootrom_baudrate,&vnd_userial.actual_baud);
+		ALOGI("userial vendor open for android FW download: opening %s, baud rate: %d, flow control: %d, baud: %d", 
+		vnd_userial.port_name, vnd_userial.bootrom_baudrate, vnd_userial.flow_control, vnd_userial.actual_baud);
+	}
+	else
+	{
+		baudrate=get_closest_baud_rate(vnd_userial.fw_op_baudrate,&vnd_userial.actual_baud);
+	}
     tcgetattr(vnd_userial.fd, &vnd_userial.termios);
     cfmakeraw(&vnd_userial.termios);
 
-    if(vnd_userial.flow_control == 0)
+	// Bootrom has flowcontrol disabled, and at close time flow control 
+	// will be disabled for the running FW for the next open
+    if((vnd_userial.android_bt_fw_download_uart != 0) | 
+		(vnd_userial.flow_control == 0))
     {
     	vnd_userial.termios.c_cflag |= (stop_bits);
 		vnd_userial.termios.c_cflag &= ~CRTSCTS;
@@ -371,8 +443,8 @@ int userial_vendor_open(tUSERIAL_CFG *p_cfg)
     tcflush(vnd_userial.fd, TCIOFLUSH);
 
     /* set input/output baudrate */
-    cfsetospeed(&vnd_userial.termios, baud);
-    cfsetispeed(&vnd_userial.termios, baud);
+    cfsetospeed(&vnd_userial.termios, vnd_userial.actual_baud);
+    cfsetispeed(&vnd_userial.termios, vnd_userial.actual_baud);
     tcsetattr(vnd_userial.fd, TCSANOW, &vnd_userial.termios);
 
 #if (BT_WAKE_VIA_USERIAL_IOCTL==TRUE)
@@ -423,16 +495,19 @@ void userial_vendor_close(void)
 ** Returns         None
 **
 *******************************************************************************/
-void userial_vendor_set_baud(uint8_t userial_baud)
+extern void ms_delay (uint32_t timeout);
+void userial_vendor_set_baud(uint32_t baud)
 {
-    uint32_t tcio_baud;
-
-    userial_to_tcio_baud(userial_baud, &tcio_baud);
-	//AT_DBG("Setting baud rate to %d", userial_baud);
-
-    cfsetospeed(&vnd_userial.termios, tcio_baud);
-    cfsetispeed(&vnd_userial.termios, tcio_baud);
-    tcsetattr(vnd_userial.fd, TCSADRAIN, &vnd_userial.termios);//TCSADRAIN to wait until everything has been transmitted
+    int  count = 0;
+	while(count > 0)
+	{
+		AT_DBG("Wait for serial Tx");
+		ms_delay(500);
+		ioctl (vnd_userial.fd, TIOCOUTQ, &count);
+	}
+	cfsetospeed(&vnd_userial.termios, baud);
+	cfsetispeed(&vnd_userial.termios, baud);
+	tcsetattr(vnd_userial.fd, TCSADRAIN, &vnd_userial.termios);//TCSADRAIN to wait until everything has been transmitted
 }
 
 /*******************************************************************************
@@ -528,6 +603,43 @@ int userial_set_fw_op_baudrate(char *p_conf_name, char *p_conf_value, int param)
     return 0;
 }
 
+
+/*******************************************************************************
+**
+** Function        userial_set_fw_dwnld_baudrate
+**
+** Description     Configure Firmware UART target baudrate. FW will switch to this baudrate
+**					dynamically using an HCI command
+**
+** Returns         0 : Success
+**                 Otherwise : Fail
+**
+*******************************************************************************/
+int userial_set_fw_dwnld_baudrate(char *p_conf_name, char *p_conf_value, int param)
+{
+    vnd_userial.fw_dwnld_baudrate = (atoi(p_conf_value)<4000000)?(atoi(p_conf_value)):(UART_TARGET_BAUD_RATE);
+	ALOGI("loaded fw target baud rate: %d", vnd_userial.fw_dwnld_baudrate);
+	
+    return 0;
+}
+
+/*******************************************************************************
+**
+** Function        userial_bootrom_set_baudrate
+**
+** Description     Configure bootrom UART baudrate
+**
+** Returns         0 : Success
+**                 Otherwise : Fail
+**
+*******************************************************************************/
+int userial_set_bootrom_baudrate(char *p_conf_name, char *p_conf_value, int param)
+{
+    vnd_userial.bootrom_baudrate = (atoi(p_conf_value)<4000000)?(atoi(p_conf_value)):(BOOTROM_BAUD_RATE);
+	ALOGI("bootrom baud rate: %d", vnd_userial.bootrom_baudrate);
+	
+    return 0;
+}
 /*******************************************************************************
 **
 ** Function        userial_set_flow_control
@@ -548,7 +660,7 @@ int userial_set_flow_control(char *p_conf_name, char *p_conf_value, int param)
 
 /*******************************************************************************
 **
-** Function        userial_set_bt_fw_download_flag
+** Function        userial_set_bt_fw_download_uart_flag
 **
 ** Description     Control downloading bt firmware from android
 **
@@ -556,14 +668,56 @@ int userial_set_flow_control(char *p_conf_name, char *p_conf_value, int param)
 **                 Otherwise : Fail
 **
 *******************************************************************************/
-int userial_set_bt_fw_download_flag(char *p_conf_name, char *p_conf_value, int param)
+int userial_set_bt_fw_download_uart_flag(char *p_conf_name, char *p_conf_value, int param)
 {
-    vnd_userial.android_bt_fw_download= atoi(p_conf_value);
-	ALOGI("AndroidBtFwDownload: %d", vnd_userial.android_bt_fw_download);
+    vnd_userial.android_bt_fw_download_uart = atoi(p_conf_value);
+	ALOGI("AndroidBtFwDownloadUART: %d", vnd_userial.android_bt_fw_download_uart);
+
+	if((vnd_userial.android_bt_fw_download_uart == 1) && 
+			(vnd_userial.android_bt_fw_download_sdio == 1))
+	{
+		ALOGW("Both download using UART and download using SDIO can't be enabled at the same time. Will use download from SDIO\n");
+		vnd_userial.android_bt_fw_download_uart=0;
+	}
 	
     return 0;
 }
 
+/*******************************************************************************
+**
+** Function        userial_set_bt_fw_download_sdio_flag
+**
+** Description     Control downloading bt firmware from android
+**
+** Returns         0 : Success
+**                 Otherwise : Fail
+**
+*******************************************************************************/
+int userial_set_bt_fw_download_sdio_flag(char *p_conf_name, char *p_conf_value, int param)
+{
+    vnd_userial.android_bt_fw_download_sdio = atoi(p_conf_value);
+	ALOGI("AndroidBtFwDownloadSDIO: %d", vnd_userial.android_bt_fw_download_sdio);
+	
+	if((vnd_userial.android_bt_fw_download_uart == 1) && 
+			(vnd_userial.android_bt_fw_download_sdio == 1))
+	{
+		ALOGW("Both download using UART and download using SDIO can't be enabled at the same time. Will use download from SDIO\n");
+		vnd_userial.android_bt_fw_download_uart=0;
+	}
+	
+    return 0;
+}
+
+/*******************************************************************************
+**
+** Function        userial_set_bt_bd_addr
+**
+** Description     Change BD address after starting the FW
+**
+** Returns         0 : Success
+**                 Otherwise : Fail
+**
+*******************************************************************************/
 int userial_set_bt_bd_addr(char *p_conf_name, char *p_conf_value, int param)
 {
 	char bd_addr_str[13],bd_addr_hex[6];

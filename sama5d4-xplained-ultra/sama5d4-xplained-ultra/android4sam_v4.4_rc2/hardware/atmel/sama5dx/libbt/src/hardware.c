@@ -68,7 +68,6 @@
 
 #define HCI_CMD_MAX_LEN             258
 
-#if 0
 #define HCI_RESET									0x0C03
 //#define HCI_VSC_WRITE_UART_CLOCK_SETTING			0xFC45
 //#define HCI_VSC_UPDATE_BAUDRATE					0xFC18
@@ -82,48 +81,35 @@
 //#define HCI_VSC_WRITE_I2SPCM_INTERFACE_PARAM		0xFC6D
 //#define HCI_VSC_LAUNCH_RAM 						0xFC4E
 #define HCI_READ_LOCAL_BDADDR						0x1009
+#define HCI_READ_MEM								0xFC01
 #define HCI_VSC_WRITE_MEM							0xFC52
 //#define HCI_VSC_MOVE_MEM							0xFC50
-#define HCI_VSC_CPU_RESET							0xFC55
+#define HCI_CPU_RESET								0xFC55
 #define HCI_READ_LOCAL_VERSION						0x1001
 
 #define HCI_EVT_CMD_CMPL_STATUS_RET_BYTE        5
 #define HCI_EVT_CMD_CMPL_LOCAL_NAME_STRING      6
 #define HCI_EVT_CMD_CMPL_LOCAL_BDADDR_ARRAY     6
+#define HCI_EVT_CMD_CMPL_LOCAL_VER_HCI_VER      6
 #define HCI_EVT_CMD_CMPL_OPCODE                 3
 #define LPM_CMD_PARAM_SIZE                      12
-#define UPDATE_BAUDRATE_CMD_PARAM_SIZE          6
+//#define UPDATE_BAUDRATE_CMD_PARAM_SIZE          6
+#define UPDATE_BAUDRATE_CMD_PARAM_SIZE          5
+#define READ_MEMORY_CMD_PARAM_SIZE 				6
 #define HCI_CMD_PREAMBLE_SIZE                   3
 #define HCD_REC_PAYLOAD_LEN_BYTE                2
 #define BD_ADDR_LEN                             6
 #define LOCAL_NAME_BUFFER_LEN                   32
 #define LOCAL_BDADDR_PATH_BUFFER_LEN            256
-#else
-#define HCI_RESET                               0x0C03
-#define HCI_VSC_WRITE_UART_CLOCK_SETTING        0xFC45
-#define HCI_VSC_UPDATE_BAUDRATE                 0xFC18
-#define HCI_READ_LOCAL_NAME                     0x0C14
-#define HCI_VSC_DOWNLOAD_MINIDRV                0xFC2E
-#define HCI_VSC_WRITE_BD_ADDR                   0xFC01
-#define HCI_VSC_WRITE_SLEEP_MODE                0xFC27
-#define HCI_VSC_WRITE_SCO_PCM_INT_PARAM         0xFC1C
-#define HCI_VSC_WRITE_PCM_DATA_FORMAT_PARAM     0xFC1E
-#define HCI_VSC_WRITE_I2SPCM_INTERFACE_PARAM    0xFC6D
-#define HCI_VSC_LAUNCH_RAM                      0xFC4E
-#define HCI_READ_LOCAL_BDADDR                   0x1009
+#define WRITE_MEM_CMD_PARAM_SIZE				8
+#define MOVE_MEM_CMD_PARAM_SIZE					13
 
-#define HCI_EVT_CMD_CMPL_STATUS_RET_BYTE        5
-#define HCI_EVT_CMD_CMPL_LOCAL_NAME_STRING      6
-#define HCI_EVT_CMD_CMPL_LOCAL_BDADDR_ARRAY     6
-#define HCI_EVT_CMD_CMPL_OPCODE                 3
-#define LPM_CMD_PARAM_SIZE                      12
-#define UPDATE_BAUDRATE_CMD_PARAM_SIZE          6
-#define HCI_CMD_PREAMBLE_SIZE                   3
-#define HCD_REC_PAYLOAD_LEN_BYTE                2
-#define BD_ADDR_LEN                             6
-#define LOCAL_NAME_BUFFER_LEN                   32
-#define LOCAL_BDADDR_PATH_BUFFER_LEN            256
-#endif
+#define FW_DOWNLOAD_CHUNK_SIZE (4*1024)
+#define DRAM_TEST_REGION_1_BASE   0x00002000
+#define DRAM_TEST_REGION_1_LENGTH 0x00001000
+#define IRAM_FW_DOWNLAOD_BASE 0x80000000
+#define BT_CLK_SRC_REG	0x40001028
+
 
 #define STREAM_TO_UINT16(u16, p) {u16 = ((uint16_t)(*(p)) + (((uint16_t)(*((p) + 1))) << 8)); (p) += 2;}
 #define UINT16_TO_STREAM(p, u16) {*(p)++ = (uint8_t)(u16); *(p)++ = (uint8_t)((u16) >> 8);}
@@ -144,7 +130,10 @@ enum {
     HW_CFG_DL_MINIDRIVER,
     HW_CFG_DL_FW_PATCH,
     HW_CFG_SET_UART_BAUD_2,
-    HW_CFG_SET_BD_ADDR
+	HW_CFG_SET_BD_ADDR,
+    HW_CFG_CHECK_BOOTROM,
+    HW_CFG_CHECK_BT_CLK_SRC,
+	HW_CFG_SET_BAUD_RATE
 #if (USE_CONTROLLER_BDADDR == TRUE)
     , HW_CFG_READ_BD_ADDR
 #endif
@@ -157,6 +146,8 @@ typedef struct
     int     fw_fd;                          /* FW patch file fd */
     uint8_t f_set_baud_2;                   /* Baud rate switch state */
     char    local_chip_name[LOCAL_NAME_BUFFER_LEN];
+	uint32_t fw_dl_progress;				/* Keeps track of the firmware download progress */
+	uint32_t fw_last_dl_size;				/* Keeps track of the last firmware download size */
 } bt_hw_cfg_cb_t;
 
 /* low power mode parameters */
@@ -188,9 +179,10 @@ typedef struct {
 ******************************************************************************/
 
 void hw_config_cback(void *p_evt_buf);
+uint8_t hw_config_update_ctrl_baud_rate(int baud , uint8_t flow_control);
 extern uint8_t vnd_local_bd_addr[BD_ADDR_LEN];
 extern vnd_userial_cb_t vnd_userial;
-
+int get_closest_baud_rate(uint32_t target_baud_rate ,uint32_t* baud);
 
 /******************************************************************************
 **  Static variables
@@ -523,26 +515,37 @@ static uint8_t hw_config_set_bdaddr(char * bd_addr)
 	                                                       HCI_CMD_MAX_LEN );
 		if (p_buf)
 		{
-			p = (uint8_t *) (p_buf );
-			*p++=1;//hci commmand
-			
-			UINT16_TO_STREAM(p, HCI_VSC_WRITE_BD_ADDR);
-			*p++ =6; /* parameter length */
+		
 				
-			*p++ =bd_addr[0];
-			*p++ =bd_addr[1];
-			*p++ =bd_addr[2];
-			*p++ =bd_addr[3];
-			*p++ =bd_addr[4];
-			*p++ =bd_addr[5];
-	
-			p = (uint8_t *) (p_buf );
-	
-			is_proceeding=write(vnd_userial.fd,p,10);
-			retval = TRUE;
+				p_buf->event = MSG_STACK_TO_HC_HCI_CMD;
+			    p_buf->offset = 0;
+			    p_buf->layer_specific = 0;
+			    p_buf->len = HCI_CMD_PREAMBLE_SIZE;
+			
+				p = (uint8_t *) (p_buf + 1);
+				UINT16_TO_STREAM(p, HCI_VSC_WRITE_BD_ADDR);
+				*p++ =6; /* parameter length */
+					
+				*p++ =bd_addr[0];
+				*p++ =bd_addr[1];
+				*p++ =bd_addr[2];
+				*p++ =bd_addr[3];
+				*p++ =bd_addr[4];
+				*p++ =bd_addr[5];
+
+	           	p_buf->len = HCI_CMD_PREAMBLE_SIZE + 6;
+				hw_cfg_cb.state = HW_CFG_SET_BD_ADDR;
+						
+					
+
+				is_proceeding= bt_vendor_cbacks->xmit_cb(HCI_VSC_WRITE_BD_ADDR, p_buf, hw_config_cback);
+		
+
+		
+		
 		}
 	}
-	return retval;
+	return is_proceeding;
 }
 
 #if (USE_CONTROLLER_BDADDR == TRUE)
@@ -573,7 +576,33 @@ static uint8_t hw_config_read_bdaddr(HC_BT_HDR *p_buf)
     return (retval);
 }
 #endif // (USE_CONTROLLER_BDADDR == TRUE)
-
+/*******************************************************************************
+**
+** Function        isBTFirmwareDownloading
+**
+** Description    Check if BT firmware is being downloaded
+**
+** Returns         True: If downloading process is in progress
+			    False:If downloading is done or did not start
+**
+*******************************************************************************/
+int bt_fw_downloading=0;
+int is_bt_fw_downloading(void)
+{
+	return bt_fw_downloading;
+}
+/*******************************************************************************
+**
+** Function        isBTFirmwareDownloadingSetValue
+**
+** Description    Change value fo BT firmware download flag
+**
+**
+*******************************************************************************/
+void set_bt_fw_downlading(int val)
+{
+	bt_fw_downloading=val;
+}
 /*******************************************************************************
 **
 ** Function         hw_config_cback
@@ -583,18 +612,25 @@ static uint8_t hw_config_read_bdaddr(HC_BT_HDR *p_buf)
 ** Returns          None
 **
 *******************************************************************************/
+int fw_size=0;
+extern int uart_close;
 void hw_config_cback(void *p_mem)
 {
-    HC_BT_HDR *p_evt_buf = (HC_BT_HDR *) p_mem;
-    char        *p_name, *p_tmp;
-    uint8_t     *p, status;
-    uint16_t    opcode;
-    HC_BT_HDR  *p_buf=NULL;
-    uint8_t     is_proceeding = FALSE;
-    int         i;
-#if (USE_CONTROLLER_BDADDR == TRUE)
-    const uint8_t null_bdaddr[BD_ADDR_LEN] = {0,0,0,0,0,0};
-#endif
+	HC_BT_HDR *p_evt_buf = (HC_BT_HDR *) p_mem;
+	uint8_t     read_buf[256];
+	char		*p_name, *p_tmp;
+	uint8_t 	*p, status;
+	uint16_t	opcode;
+	HC_BT_HDR  *p_buf=NULL;
+	uint8_t 	is_proceeding = FALSE;
+	int 		i;
+	int bytes_read;
+	FILE* fw;
+	uint32_t baud_rate;
+
+	#if (USE_CONTROLLER_BDADDR == TRUE)
+	const uint8_t null_bdaddr[BD_ADDR_LEN] = {0,0,0,0,0,0};
+	#endif
 
     status = *((uint8_t *)(p_evt_buf + 1) + HCI_EVT_CMD_CMPL_STATUS_RET_BYTE);
     p = (uint8_t *)(p_evt_buf + 1) + HCI_EVT_CMD_CMPL_OPCODE;
@@ -617,13 +653,96 @@ void hw_config_cback(void *p_mem)
 
         switch (hw_cfg_cb.state)
         {
+        	case HW_CFG_CHECK_BOOTROM:
+			{
+				uint8_t *hci_version;
+				uint8_t *ret_buffer;
+					
+				ALOGI("[Atmel] bt vendor lib config callback (HW_CFG_CHECK_BOOTROM)");
+
+				ret_buffer = (uint8_t *)(p_evt_buf + 1) ;
+				hci_version = (uint8_t *) (p_evt_buf + 1) + \
+						 HCI_EVT_CMD_CMPL_LOCAL_VER_HCI_VER;
+
+			//	for(i=0;i<30;i++)
+					ALOGI("read[%d]=%x",6,ret_buffer[6]);
+				if(vnd_userial.android_bt_fw_download_uart != 0	)		 
+				{
+					if((hci_version[0]==6))/*this indicates that there has been a baud rate mismatch between host and controller*/ 
+					{
+						ALOGI("Firmware already downloaded");
+						
+						
+						if(vnd_userial.fw_op_baudrate != vnd_userial.bootrom_baudrate)
+						{
+							ALOGI("Raise host and controller baud rates to %d",vnd_userial.fw_op_baudrate);
+							baud_rate=get_closest_baud_rate(vnd_userial.fw_op_baudrate,&vnd_userial.actual_baud);
+							is_proceeding=hw_config_update_ctrl_baud_rate(baud_rate,vnd_userial.flow_control);
+							
+							
+						}
+						else if (vnd_userial.enable_bdaddress_change != 0)
+						{
+						
+							is_proceeding=hw_config_set_bdaddr(vnd_userial.bd_addr);
+								
+						}
+						else
+						{
+							is_proceeding=1;
+							bt_vendor_cbacks->fwcfg_cb(BT_VND_OP_RESULT_SUCCESS);
+						}
+						
+					}		
+					else	
+					{	
+						ALOGI("No firmware downloaded");
+					
+						p_buf->event = MSG_STACK_TO_HC_HCI_CMD;
+			       		p_buf->offset = 0;
+			       		p_buf->layer_specific = 0;
+			       		p_buf->len = HCI_CMD_PREAMBLE_SIZE;
+			
+			       		p = (uint8_t *) (p_buf + 1);
+			       		UINT16_TO_STREAM(p, HCI_RESET);
+			      			*p = 0; /* parameter length */
+
+						hw_cfg_cb.state = HW_CFG_START;
+						//hw_cfg_cb.state = HW_CFG_SET_UART_BAUD_1;
+					
+						ALOGI("[Atmel %s] sending RESET command. UART_TARGET_BAUD_RATE is %d",__func__,UART_TARGET_BAUD_RATE);
+			       		is_proceeding=bt_vendor_cbacks->xmit_cb(HCI_RESET, p_buf, hw_config_cback);
+					}
+					
+	        		}
+				else
+				{
+					is_proceeding=1;
+					ALOGI("vnd_userial.android_bt_fw_download= 0");
+				   	 ALOGI("Bluetooth Firmware and smd is initialized");
+					ALOGI("Atmel: local bd address: %02x:%02x:%02x:%02x:%02x:%02x:", 
+						vnd_local_bd_addr[0],vnd_local_bd_addr[1],vnd_local_bd_addr[2],
+						vnd_local_bd_addr[3],vnd_local_bd_addr[4],vnd_local_bd_addr[5]);
+					if(vnd_userial.enable_bdaddress_change != 0)
+					{
+								
+						is_proceeding=hw_config_set_bdaddr(vnd_userial.bd_addr);
+										
+					}
+					else
+						bt_vendor_cbacks->fwcfg_cb(BT_VND_OP_RESULT_SUCCESS);
+		
+				}
+        		}
+			break;
             case HW_CFG_SET_UART_BAUD_1:
                 /* update baud rate of host's UART port */
                 ALOGI("bt vendor lib: set UART baud %i", UART_TARGET_BAUD_RATE);
-                userial_vendor_set_baud( \
-                    line_speed_to_userial_baud(UART_TARGET_BAUD_RATE) \
-                );
+           
+            	get_closest_baud_rate(vnd_userial.fw_dwnld_baudrate,&vnd_userial.actual_baud);
+              	userial_vendor_set_baud(vnd_userial.actual_baud);
 
+				#if 0 // NMI We don't support HCI_READ_LOCAL_NAME, although it might be useful to support in the future
                 /* read local name */
                 UINT16_TO_STREAM(p, HCI_READ_LOCAL_NAME);
                 *p = 0; /* parameter length */
@@ -634,10 +753,12 @@ void hw_config_cback(void *p_mem)
                 is_proceeding = bt_vendor_cbacks->xmit_cb(HCI_READ_LOCAL_NAME, \
                                                     p_buf, hw_config_cback);
                 break;
-
-            case HW_CFG_READ_LOCAL_NAME:
-                p_tmp = p_name = (char *) (p_evt_buf + 1) + \
-                         HCI_EVT_CMD_CMPL_LOCAL_NAME_STRING;
+				#endif // NMI fall through intentionaly cause we won't send HCI_READ_LOCAL_NAME
+			case HW_CFG_READ_LOCAL_NAME:
+				ALOGI("[Atmel] bt vendor lib config callback (HW_CFG_READ_LOCAL_NAME)");
+		  		#if 0 //NMI: we don't support local chip name for now
+				p_tmp = p_name = (char *) (p_evt_buf + 1) + \
+						 HCI_EVT_CMD_CMPL_LOCAL_NAME_STRING;
 
                 for (i=0; (i < LOCAL_NAME_BUFFER_LEN)||(*(p_name+i) != 0); i++)
                     *(p_name+i) = toupper(*(p_name+i));
@@ -666,7 +787,6 @@ void hw_config_cback(void *p_mem)
                     }
                     else
                     {
-                    #if 0
                         /* vsc_download_minidriver */
                         UINT16_TO_STREAM(p, HCI_VSC_DOWNLOAD_MINIDRV);
                         *p = 0; /* parameter length */
@@ -677,7 +797,6 @@ void hw_config_cback(void *p_mem)
                         is_proceeding = bt_vendor_cbacks->xmit_cb( \
                                             HCI_VSC_DOWNLOAD_MINIDRV, p_buf, \
                                             hw_config_cback);
-					#endif	
                     }
                 }
                 else
@@ -687,116 +806,323 @@ void hw_config_cback(void *p_mem)
                     );
                 }
 
-                if (is_proceeding == FALSE)
-                {
-                    //is_proceeding = hw_config_set_bdaddr(p_buf);
-                }
-                break;
+				if (is_proceeding == FALSE)
+				{
+					is_proceeding = hw_config_set_bdaddr(p_buf);
+				}
+				break;
+				#else
+				char p_nmi_path[] = "/system/etc/firmware/bt_firmware.bin";
+				p_name = p_nmi_path;
+				if ((hw_cfg_cb.fw_fd = open(p_name, O_RDONLY)) == -1)
+				{
+					ALOGE("vendor lib preload failed to open [%s]", p_name);
+					is_proceeding=FALSE;
+					break;
+				}
+				/* get firmware file size to use it for final check*/	
+				fw=fdopen(hw_cfg_cb.fw_fd, "rb");
+		
+				if (fw )
+				{
+					fseek(fw,0L,SEEK_END);
 
-            case HW_CFG_DL_MINIDRIVER:
-                /* give time for placing firmware in download mode */
-                ms_delay(50);
-                hw_cfg_cb.state = HW_CFG_DL_FW_PATCH;
-                /* fall through intentionally */
-            case HW_CFG_DL_FW_PATCH:
-                p_buf->len = read(hw_cfg_cb.fw_fd, p, HCI_CMD_PREAMBLE_SIZE);
-                if (p_buf->len > 0)
-                {
-                #if 0
-                    if ((p_buf->len < HCI_CMD_PREAMBLE_SIZE) || \
-                        (opcode == HCI_VSC_LAUNCH_RAM))
-                    {
-                        ALOGW("firmware patch file might be altered!");
-                    }
-                    else
-                    {
-                        p_buf->len += read(hw_cfg_cb.fw_fd, \
-                                           p+HCI_CMD_PREAMBLE_SIZE,\
-                                           *(p+HCD_REC_PAYLOAD_LEN_BYTE));
-                        STREAM_TO_UINT16(opcode,p);
-                        is_proceeding = bt_vendor_cbacks->xmit_cb(opcode, \
-                                                p_buf, hw_config_cback);
-                        break;
-                    }
-				#endif
-                }
+					fw_size=ftell(fw);
 
-                close(hw_cfg_cb.fw_fd);
-                hw_cfg_cb.fw_fd = -1;
+					fseek(fw,0L,SEEK_SET);
+					ALOGI("[Atmel]Firmware size= %d",fw_size);
+		
+				}
+				if((fw_size == 0) || (fw_size < 0))
+				{
+					ALOGI("Couldn't get firmware file size");
+					is_proceeding=FALSE;
+					break;
+				}
+		
+				hw_cfg_cb.fw_dl_progress = 0;
+				hw_cfg_cb.fw_last_dl_size = 0;
+				#endif // NMI:
+				/* NMI: fall through intentionally cause we won't send any commands  from this state*/
+			case HW_CFG_DL_MINIDRIVER:
+				ALOGI("bt vendor lib config callback (HW_CFG_DL_MINIDRIVER)");
+				/* give time for placing firmware in download mode */
+				ms_delay(50);
+				hw_cfg_cb.state = HW_CFG_DL_FW_PATCH;
 
-                /* Normally the firmware patch configuration file
-                 * sets the new starting baud rate at 115200.
-                 * So, we need update host's baud rate accordingly.
-                 */
-                ALOGI("bt vendor lib: set UART baud 115200");
-                userial_vendor_set_baud(USERIAL_BAUD_115200);
+				/* fall through intentionally */
+			case HW_CFG_DL_FW_PATCH:
+				//ALOGI("bt vendor lib config callback (HW_CFG_DL_FW_PATCH)");
+				#if 0 // NMI:
+				p_buf->len = read(hw_cfg_cb.fw_fd, p, HCI_CMD_PREAMBLE_SIZE);
+				if (p_buf->len > 0)
+				{
+					if ((p_buf->len < HCI_CMD_PREAMBLE_SIZE) || \
+						(opcode == HCI_VSC_LAUNCH_RAM))
+					{
+						ALOGW("firmware patch file might be altered!");
+					}
+					else
+					{
+						p_buf->len += read(hw_cfg_cb.fw_fd, \
+										   p+HCI_CMD_PREAMBLE_SIZE,\
+										   *(p+HCD_REC_PAYLOAD_LEN_BYTE));
+						STREAM_TO_UINT16(opcode,p);
+						is_proceeding = bt_vendor_cbacks->xmit_cb(opcode, \
+												p_buf, hw_config_cback);
+						break;
+					}
+				}
+				#else // NMI: Do our firmware download
+				/* Need bigger buffer to carry the write memory HCI command and the actual data*/
+				bt_vendor_cbacks->dealloc(p_buf);
+				p_buf = (HC_BT_HDR	*)bt_vendor_cbacks->alloc(BT_HC_HDR_SIZE + HCI_CMD_MAX_LEN + FW_DOWNLOAD_CHUNK_SIZE);
 
-                /* Next, we would like to boost baud rate up again
-                 * to desired working speed.
-                 */
-                hw_cfg_cb.f_set_baud_2 = TRUE;
+				if(p_buf != NULL)
+				{
+			
+				
+					p_buf->event = MSG_STACK_TO_HC_HCI_CMD;
+					p_buf->offset = 0;
+					p_buf->layer_specific = 0;
+					p_buf->len = HCI_CMD_PREAMBLE_SIZE;
+					p = (uint8_t *) (p_buf + 1);
+			
+					hw_cfg_cb.fw_last_dl_size = read(hw_cfg_cb.fw_fd,p+WRITE_MEM_CMD_PARAM_SIZE+HCI_CMD_PREAMBLE_SIZE,FW_DOWNLOAD_CHUNK_SIZE);
 
-                /* Check if we need to pause a few hundred milliseconds
-                 * before sending down any HCI command.
-                 */
-                ms_delay(look_up_fw_settlement_delay());
+					if(hw_cfg_cb.fw_last_dl_size)
+					{
+						UINT16_TO_STREAM(p, HCI_VSC_WRITE_MEM);
+						*p++ = WRITE_MEM_CMD_PARAM_SIZE;				/* parameter length */
+						UINT32_TO_STREAM(p,  IRAM_FW_DOWNLAOD_BASE+hw_cfg_cb.fw_dl_progress); /* Traget Address */
+						UINT32_TO_STREAM(p, hw_cfg_cb.fw_last_dl_size);	/* Size */
+							
+		
+						p_buf->len = HCI_CMD_PREAMBLE_SIZE+WRITE_MEM_CMD_PARAM_SIZE+hw_cfg_cb.fw_last_dl_size;
+								
+						hw_cfg_cb.state = HW_CFG_DL_FW_PATCH;
+						hw_cfg_cb.fw_dl_progress += hw_cfg_cb.fw_last_dl_size;
 
-                /* fall through intentionally */
-            case HW_CFG_START:
-                if (UART_TARGET_BAUD_RATE > 3000000)
-                {
-                #if 1
-                    /* set UART clock to 48MHz */
-                    UINT16_TO_STREAM(p, HCI_VSC_WRITE_UART_CLOCK_SETTING);
-                    *p++ = 1; /* parameter length */
-                    *p = 1; /* (1,"UART CLOCK 48 MHz")(2,"UART CLOCK 24 MHz") */
+						is_proceeding=bt_vendor_cbacks->xmit_cb(HCI_VSC_WRITE_MEM, p_buf, hw_config_cback);
+							  
+						break;
+					}
+						
+				}		
+				else
+				{
+					ALOGE("Failed to allocate memory to download firmware");
+					is_proceeding=FALSE;
+					break;
+				}
+						
+				close(hw_cfg_cb.fw_fd);
+				hw_cfg_cb.fw_fd = -1;
+				if(hw_cfg_cb.fw_dl_progress == (uint32_t)fw_size)
+				{		
+					ALOGI("vendor lib fwcfg completed");
+
+
+					/*Reset the controller so that it starts executing from the downloaded firmware*/
+
+					p = (uint8_t *) (p_buf );
+					*p++=1;
+					UINT16_TO_STREAM(p, HCI_CPU_RESET);
+					*p++ =0;				/* parameter length */
+					p = (uint8_t *) (p_buf );
+				
+					is_proceeding=write(vnd_userial.fd,p,4);
+					
+				}
+				else
+				{
+					ALOGI("Downladed size %d not equal to firmware file size %d",hw_cfg_cb.fw_dl_progress,fw_size);
+					is_proceeding=FALSE;
+					break;
+				}	
+				#endif // NMI	
+ 				/* Normally the firmware patch configuration file
+				 * sets the new starting baud rate at 115200.
+				 * So, we need update host's baud rate accordingly.
+				 */
+				ms_delay(300);// make sure the FW is completely downloaded before changing the host baudrate
+
+				get_closest_baud_rate(vnd_userial.bootrom_baudrate,&vnd_userial.actual_baud);
+				userial_vendor_set_baud(vnd_userial.actual_baud);
+				if(vnd_userial.fw_op_baudrate != vnd_userial.bootrom_baudrate)
+				{
+					baud_rate=get_closest_baud_rate(vnd_userial.fw_op_baudrate,&vnd_userial.actual_baud);
+					is_proceeding=hw_config_update_ctrl_baud_rate(baud_rate,vnd_userial.flow_control);
+					
+				}
+
+				else if(vnd_userial.enable_bdaddress_change != 0)
+				{
+					is_proceeding=hw_config_set_bdaddr(vnd_userial.bd_addr);
+				}
+				else
+				{
+					
+					/* Next, we would like to boost baud rate up again
+					* to desired working speed.
+					*/
+					hw_cfg_cb.f_set_baud_2 = TRUE;
+
+					/* Check if we need to pause a few hundred milliseconds
+					 * before sending down any HCI command.
+					 */
+					ms_delay(look_up_fw_settlement_delay());
+					bt_vendor_cbacks->fwcfg_cb(BT_VND_OP_RESULT_SUCCESS);
+
+					hw_cfg_cb.fw_dl_progress = 0;
+					hw_cfg_cb.fw_last_dl_size = 0;
+					hw_cfg_cb.state = 0;
+					is_proceeding=1;
+				
+					// In case we will go on with changing FW's baudrate using 
+					// HCI command, remove this break and continue with fall through
+				}
+			break;
+
+	
+	
+			case HW_CFG_SET_BAUD_RATE:
+			ALOGI("bt vendor lib config callback (HW_CFG_SET_BAUD_RATE)");
+			if(uart_close)
+			{
+				
+				bt_vendor_cbacks->epilog_cb(BT_VND_OP_RESULT_SUCCESS);
+				is_proceeding=1;
+				uart_close=0;
+				break;
+			}
+			userial_vendor_set_baud(vnd_userial.actual_baud);
+			if(vnd_userial.enable_bdaddress_change != 0)
+			{
+				is_proceeding=hw_config_set_bdaddr(vnd_userial.bd_addr);
+								
+			}
+			else
+			{
+				bt_vendor_cbacks->fwcfg_cb(BT_VND_OP_RESULT_SUCCESS);
+				is_proceeding=1;
+			}
+			break;
+	
+
+			case HW_CFG_START:
+				ALOGI("bt vendor lib config callback (HW_CFG_START)");
+				#if 0 // NMI: Not using 3M speed
+				if (UART_TARGET_BAUD_RATE > 3000000)
+				{
+					/* set UART clock to 48MHz */
+					UINT16_TO_STREAM(p, HCI_VSC_WRITE_UART_CLOCK_SETTING);
+					*p++ = 1; /* parameter length */
+					*p = 1; /* (1,"UART CLOCK 48 MHz")(2,"UART CLOCK 24 MHz") */
 
                     p_buf->len = HCI_CMD_PREAMBLE_SIZE + 1;
                     hw_cfg_cb.state = HW_CFG_SET_UART_CLOCK;
 
-                    is_proceeding = bt_vendor_cbacks->xmit_cb( \
-                                        HCI_VSC_WRITE_UART_CLOCK_SETTING, \
-                                        p_buf, hw_config_cback);
-                    break;
+					is_proceeding = bt_vendor_cbacks->xmit_cb( \
+										HCI_VSC_WRITE_UART_CLOCK_SETTING, \
+										p_buf, hw_config_cback);
+					break;
+				}
 				#endif
-                }
-                /* fall through intentionally */
-            case HW_CFG_SET_UART_CLOCK:
-                /* set controller's UART baud rate to 3M */
-                UINT16_TO_STREAM(p, HCI_VSC_UPDATE_BAUDRATE);
-                *p++ = UPDATE_BAUDRATE_CMD_PARAM_SIZE; /* parameter length */
-                *p++ = 0; /* encoded baud rate */
-                *p++ = 0; /* use encoded form */
-                UINT32_TO_STREAM(p, UART_TARGET_BAUD_RATE);
+				/* fall through intentionally */
 
-                p_buf->len = HCI_CMD_PREAMBLE_SIZE + \
-                             UPDATE_BAUDRATE_CMD_PARAM_SIZE;
-                hw_cfg_cb.state = (hw_cfg_cb.f_set_baud_2) ? \
-                            HW_CFG_SET_UART_BAUD_2 : HW_CFG_SET_UART_BAUD_1;
+			case HW_CFG_CHECK_BT_CLK_SRC:
+			
+				/*read clock select register to check if cpll is done*/
+				p_buf->event = MSG_STACK_TO_HC_HCI_CMD;
+			    p_buf->offset = 0;
+			    p_buf->layer_specific = 0;
+			    p_buf->len = HCI_CMD_PREAMBLE_SIZE;
+			
+				p = (uint8_t *) (p_buf + 1);
+			    UINT16_TO_STREAM(p, HCI_READ_MEM);
+			    *p++ = 6; /* parameter length */
+				UINT32_TO_STREAM(p, BT_CLK_SRC_REG);
+				*p++=0x20;
+				*p++=1;
 
-                is_proceeding = bt_vendor_cbacks->xmit_cb(HCI_VSC_UPDATE_BAUDRATE, \
-                                                    p_buf, hw_config_cback);
-                break;
+				hw_cfg_cb.state = HW_CFG_SET_UART_CLOCK;
+				p_buf->len = HCI_CMD_PREAMBLE_SIZE + \
+	                         READ_MEMORY_CMD_PARAM_SIZE ;
+				is_proceeding = bt_vendor_cbacks->xmit_cb(HCI_READ_MEM, \
+	                                                p_buf, hw_config_cback);
+				
+				break;
+				
+		
+			case HW_CFG_SET_UART_CLOCK:
+	
+			{
+				uint8_t *clk_src;
+				uint8_t *ret_buffer;
+				ret_buffer = (uint8_t *)(p_evt_buf + 1) ;
+				clk_src = (uint8_t *) (p_evt_buf + 1) + 7;
+			//	for(i=0;i<30;i++)
+				ALOGI("clk src=%x,read[%d]=%x",*clk_src,7,ret_buffer[7]);
+				p_buf->event = MSG_STACK_TO_HC_HCI_CMD;
+				p_buf->offset = 0;
+				p_buf->len = 0;
+				p_buf->layer_specific = 0;
 
-            case HW_CFG_SET_UART_BAUD_2:
-                /* update baud rate of host's UART port */
-                ALOGI("bt vendor lib: set UART baud %i", UART_TARGET_BAUD_RATE);
-                userial_vendor_set_baud( \
-                    line_speed_to_userial_baud(UART_TARGET_BAUD_RATE) \
-                );
+		        p = (uint8_t *) (p_buf + 1);
+				/* set controller's UART baud rate to 3M */
+				ALOGI("bt vendor lib config callback (HW_CFG_SET_UART_CLOCK): set controller UART baud %i",  UART_TARGET_BAUD_RATE);
+				UINT16_TO_STREAM(p, HCI_VSC_UPDATE_BAUDRATE);
+				*p++ = UPDATE_BAUDRATE_CMD_PARAM_SIZE; /* parameter length */
+				// NMI: We don't use encoded baud rate or encoded form
+				//*p++ = 0; /* encoded baud rate */
+				//*p++ = 0; /* use encoded form */
+				//if(ret_buffer[7]==3)
+					if(*clk_src==3)
+				{
+					ALOGI("BT Clock source is 3 ,Pll update si done");
+					UINT32_TO_STREAM(p, vnd_userial.fw_dwnld_baudrate/2);
+				}
+				else
+				{
+					ALOGI("BT Clock source is 2 ,no PLL ");
+					UINT32_TO_STREAM(p, vnd_userial.fw_dwnld_baudrate);
+				}
+				
+			}
+		
+				*p++ = 0; /* NMI: No Flow control */
 
-#if (USE_CONTROLLER_BDADDR == TRUE)
-                if ((is_proceeding = hw_config_read_bdaddr(p_buf)) == TRUE)
-                    break;
-#else
-               // if ((is_proceeding = hw_config_set_bdaddr(p_buf)) == TRUE)
-                //    break;
-#endif
-                /* fall through intentionally */
-            case HW_CFG_SET_BD_ADDR:
-                ALOGI("vendor lib fwcfg completed");
-                bt_vendor_cbacks->dealloc(p_buf);
-                bt_vendor_cbacks->fwcfg_cb(BT_VND_OP_RESULT_SUCCESS);
+	            p_buf->len = HCI_CMD_PREAMBLE_SIZE + \
+	                         UPDATE_BAUDRATE_CMD_PARAM_SIZE;
+	            hw_cfg_cb.state = (hw_cfg_cb.f_set_baud_2) ? \
+	                        HW_CFG_SET_UART_BAUD_2 : HW_CFG_SET_UART_BAUD_1;
+
+	            is_proceeding = bt_vendor_cbacks->xmit_cb(HCI_VSC_UPDATE_BAUDRATE, \
+	                                                p_buf, hw_config_cback);
+			
+			break;
+
+			case HW_CFG_SET_UART_BAUD_2:
+				/* update baud rate of host's UART port */
+				ALOGI("bt vendor lib config callback (HW_CFG_SET_UART_BAUD_2): set host UART baud %i",  vnd_userial.fw_dwnld_baudrate);
+			
+				get_closest_baud_rate(vnd_userial.fw_dwnld_baudrate,&vnd_userial.actual_baud);
+				userial_vendor_set_baud(vnd_userial.actual_baud);
+
+				#if (USE_CONTROLLER_BDADDR == TRUE)
+				if ((is_proceeding = hw_config_read_bdaddr(p_buf)) == TRUE)
+					break;
+				#else
+				//if ((is_proceeding = hw_config_set_bdaddr(p_buf)) == TRUE)
+				//	break;
+				#endif
+				/* fall through intentionally */
+			case HW_CFG_SET_BD_ADDR:
+				
+				ALOGI("bt vendor lib config callback (HW_CFG_SET_BD_ADDR)");
+				bt_vendor_cbacks->dealloc(p_buf);
+				bt_vendor_cbacks->fwcfg_cb(BT_VND_OP_RESULT_SUCCESS);
 
                 hw_cfg_cb.state = 0;
 
@@ -809,10 +1135,11 @@ void hw_config_cback(void *p_mem)
                 is_proceeding = TRUE;
                 break;
 
-#if (USE_CONTROLLER_BDADDR == TRUE)
-            case HW_CFG_READ_BD_ADDR:
-                p_tmp = (char *) (p_evt_buf + 1) + \
-                         HCI_EVT_CMD_CMPL_LOCAL_BDADDR_ARRAY;
+			#if (USE_CONTROLLER_BDADDR == TRUE)
+			case HW_CFG_READ_BD_ADDR:
+				 ALOGI("bt vendor lib config callback (HW_CFG_READ_BD_ADDR)");
+				p_tmp = (char *) (p_evt_buf + 1) + \
+						 HCI_EVT_CMD_CMPL_LOCAL_BDADDR_ARRAY;
 
                 if (memcmp(p_tmp, null_bdaddr, BD_ADDR_LEN) == 0)
                 {
@@ -832,6 +1159,8 @@ void hw_config_cback(void *p_mem)
                 bt_vendor_cbacks->dealloc(p_buf);
                 bt_vendor_cbacks->fwcfg_cb(BT_VND_OP_RESULT_SUCCESS);
 
+                hw_cfg_cb.fw_dl_progress = 0;
+				hw_cfg_cb.fw_last_dl_size = 0;
 				hw_cfg_cb.state = 0;
 
                 if (hw_cfg_cb.fw_fd != -1)
@@ -853,6 +1182,9 @@ void hw_config_cback(void *p_mem)
     if (is_proceeding == FALSE)
     {
         ALOGE("vendor lib fwcfg aborted!!!");
+		
+		set_bt_fw_downlading(0);
+
         if (bt_vendor_cbacks)
         {
             if (p_buf != NULL)
@@ -989,25 +1321,65 @@ void hw_config_start(void)
     HC_BT_HDR  *p_buf = NULL;
     uint8_t     *p;
 
+   	uint8_t     is_proceeding=0,read_buf[256],bytes_read,i;
 	ALOGI("hw_config_start");
     hw_cfg_cb.state = 0;
     hw_cfg_cb.fw_fd = -1;
     hw_cfg_cb.f_set_baud_2 = FALSE;
+	uart_close=0;
 
 	strcpy(hw_cfg_cb.local_chip_name, AT_CHIP_NAME);
 
-    ALOGI("Bluetooth Firmware and smd is initialized");
-	ALOGI("Atmel: local bd address: %02x:%02x:%02x:%02x:%02x:%02x:", 
-		vnd_local_bd_addr[0],vnd_local_bd_addr[1],vnd_local_bd_addr[2],
-		vnd_local_bd_addr[3],vnd_local_bd_addr[4],vnd_local_bd_addr[5]);
 	
-	if(vnd_userial.enable_bdaddress_change != 0)
 	{
-		hw_config_set_bdaddr(vnd_userial.bd_addr);
-		hw_config_reset();
-	}
+		
+		 /* Must make sure serial port is open because /external/bluetooth/bluedroid/hci/src/bt_hci_bdroid.c 
+		 don't check for userial_vendor_open() return, so if open failed, it will still call hw_config_start() */ 
+		if(vnd_userial.fd == -1)
+		{
+			ALOGE("vendor lib fw conf aborted. serial port not open");
+			bt_vendor_cbacks->fwcfg_cb(BT_VND_OP_RESULT_FAIL);
+		}
+		else if(hw_cfg_cb.state != 0)
+		{
+			// Download in progress... don't interrupt
+			AT_DBG("Download in progress, don't interrupt!");
+			return;
+		}
+		else
+		{
+			if (bt_vendor_cbacks)		
+				p_buf = (HC_BT_HDR  *)bt_vendor_cbacks->alloc(BT_HC_HDR_SIZE + \
+	                                                       HCI_CMD_MAX_LEN );
+			if (p_buf)
+			{
+				/*send read_local_version command to check if firmware is already downloaded*/
+				p_buf->event = MSG_STACK_TO_HC_HCI_CMD;
+	       		p_buf->offset = 0;
+	       		p_buf->layer_specific = 0;
+	       		p_buf->len = HCI_CMD_PREAMBLE_SIZE;
 	
-	bt_vendor_cbacks->fwcfg_cb(BT_VND_OP_RESULT_SUCCESS);
+	       		p = (uint8_t *) (p_buf + 1);
+	       		UINT16_TO_STREAM(p, HCI_READ_LOCAL_VERSION);
+	      			*p = 0; /* parameter length */
+
+				hw_cfg_cb.state = HW_CFG_CHECK_BOOTROM;
+				set_bt_fw_downlading(1);
+			
+				ALOGI("[Atmel %s] sending read local version command",__func__);
+	       		bt_vendor_cbacks->xmit_cb(HCI_READ_LOCAL_VERSION, p_buf, hw_config_cback);
+			}
+			else
+			{
+				if (bt_vendor_cbacks)
+	        		{
+	        			ALOGE("vendor lib fw conf aborted [no buffer]");
+					bt_vendor_cbacks->fwcfg_cb(BT_VND_OP_RESULT_FAIL);
+	        		}
+			}
+		}
+	}
+
 }
 
 static uint8_t hw_config_reset(void)
@@ -1035,7 +1407,7 @@ static uint8_t hw_config_reset(void)
 		
 			*p++=1;//hci commmand
 			
-			UINT16_TO_STREAM(p, 0x0C03);
+			UINT16_TO_STREAM(p, HCI_RESET);
 			*p++ =0; /* parameter length */
 					
 			p = (uint8_t *) (p_buf );
@@ -1048,6 +1420,53 @@ static uint8_t hw_config_reset(void)
 	return retval;
 }
 
+
+ uint8_t hw_config_update_ctrl_baud_rate(int baud , uint8_t flow_control )
+ {
+  	HC_BT_HDR  *p_buf = NULL;
+    uint8_t     *p;
+   	uint8_t     is_proceeding=0;
+	uint8_t retval = FALSE;
+	
+	ALOGI("atmel: adjust controller baudrate  to %d",baud);
+ 	
+	if(vnd_userial.fd == -1)
+	{
+		ALOGE("vendor lib fw conf aborted. serial port not open");
+		bt_vendor_cbacks->fwcfg_cb(BT_VND_OP_RESULT_FAIL);
+	}
+	else
+	{
+		if (bt_vendor_cbacks)		
+			p_buf = (HC_BT_HDR  *)bt_vendor_cbacks->alloc(BT_HC_HDR_SIZE + \
+	                                                       HCI_CMD_MAX_LEN );
+		if (p_buf)
+		{
+	
+			p_buf->event = MSG_STACK_TO_HC_HCI_CMD;
+			p_buf->offset = 0;
+			p_buf->layer_specific = 0;
+			p_buf->len = HCI_CMD_PREAMBLE_SIZE;
+			
+			p = (uint8_t *) (p_buf + 1);
+			UINT16_TO_STREAM(p, HCI_VSC_UPDATE_BAUDRATE);
+			*p++ = UPDATE_BAUDRATE_CMD_PARAM_SIZE; /* parameter length */
+			
+			UINT32_TO_STREAM(p, baud);
+			*p++ = flow_control; /* NMI: No Flow control */
+
+			hw_cfg_cb.state = HW_CFG_SET_BAUD_RATE;
+			p_buf->len = HCI_CMD_PREAMBLE_SIZE + \
+	                         UPDATE_BAUDRATE_CMD_PARAM_SIZE ;
+			is_proceeding = bt_vendor_cbacks->xmit_cb(HCI_VSC_UPDATE_BAUDRATE, \
+	                                                p_buf, hw_config_cback);
+				
+		}
+	}
+
+	return is_proceeding;
+ }
+ 
 /*******************************************************************************
 **
 ** Function        hw_lpm_enable
