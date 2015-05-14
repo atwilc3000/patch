@@ -50,8 +50,8 @@ on boot
    chmod 0777 /sys/class/backlight/backlight/brightness
    chown system system /sys/class/backlight/backlight/brightness
 
-   chown bluetooth net_bt_stack  /dev/at_pwr_dev
    insmod /system/lib/modules/wilc3000.ko
+   chown bluetooth net_bt_stack /dev/at_pwr_dev
 
 # Add for bluetooth
 #bluetooth
