@@ -506,6 +506,7 @@ static uint8_t hw_config_set_bdaddr(char * bd_addr)
 	if(vnd_userial.fd == -1)
 	{
 		ALOGE("vendor lib fw conf aborted. serial port not open");
+		pwr_dev_deliver_event(CHIP_ALLOW_SLEP_AFTER_BT_FW_DOWNLOAD);
 		bt_vendor_cbacks->fwcfg_cb(BT_VND_OP_RESULT_FAIL);
 	}
 	else
@@ -515,34 +516,35 @@ static uint8_t hw_config_set_bdaddr(char * bd_addr)
 	                                                       HCI_CMD_MAX_LEN );
 		if (p_buf)
 		{
-		
-				
-				p_buf->event = MSG_STACK_TO_HC_HCI_CMD;
-			    p_buf->offset = 0;
-			    p_buf->layer_specific = 0;
-			    p_buf->len = HCI_CMD_PREAMBLE_SIZE;
+			p_buf->event = MSG_STACK_TO_HC_HCI_CMD;
+			p_buf->offset = 0;
+			p_buf->layer_specific = 0;
+			p_buf->len = HCI_CMD_PREAMBLE_SIZE;
 			
-				p = (uint8_t *) (p_buf + 1);
-				UINT16_TO_STREAM(p, HCI_VSC_WRITE_BD_ADDR);
-				*p++ =6; /* parameter length */
+			p = (uint8_t *) (p_buf + 1);
+			UINT16_TO_STREAM(p, HCI_VSC_WRITE_BD_ADDR);
+			*p++ =6; /* parameter length */
 					
-				*p++ =bd_addr[0];
-				*p++ =bd_addr[1];
-				*p++ =bd_addr[2];
-				*p++ =bd_addr[3];
-				*p++ =bd_addr[4];
-				*p++ =bd_addr[5];
+			*p++ =bd_addr[0];
+			*p++ =bd_addr[1];
+			*p++ =bd_addr[2];
+			*p++ =bd_addr[3];
+			*p++ =bd_addr[4];
+			*p++ =bd_addr[5];
 
-	           	p_buf->len = HCI_CMD_PREAMBLE_SIZE + 6;
-				hw_cfg_cb.state = HW_CFG_SET_BD_ADDR;
+	        p_buf->len = HCI_CMD_PREAMBLE_SIZE + 6;
+			hw_cfg_cb.state = HW_CFG_SET_BD_ADDR;
 						
-					
-
-				is_proceeding= bt_vendor_cbacks->xmit_cb(HCI_VSC_WRITE_BD_ADDR, p_buf, hw_config_cback);
-		
-
-		
-		
+			is_proceeding= bt_vendor_cbacks->xmit_cb(HCI_VSC_WRITE_BD_ADDR, p_buf, hw_config_cback);
+		}
+		else
+		{
+			pwr_dev_deliver_event(CHIP_ALLOW_SLEP_AFTER_BT_FW_DOWNLOAD);
+			if(bt_vendor_cbacks)
+		    {
+		    	ALOGE("vendor lib fw conf aborted [no buffer]");
+				bt_vendor_cbacks->fwcfg_cb(BT_VND_OP_RESULT_FAIL);
+		    }
 		}
 	}
 	return is_proceeding;
@@ -666,13 +668,12 @@ void hw_config_cback(void *p_mem)
 
 			//	for(i=0;i<30;i++)
 					ALOGI("read[%d]=%x",6,ret_buffer[6]);
-				if(vnd_userial.android_bt_fw_download_uart != 0	)		 
-				{
+			
 					if((hci_version[0]==6))/*this indicates that there has been a baud rate mismatch between host and controller*/ 
 					{
 						ALOGI("Firmware already downloaded");
 						
-						
+						ms_delay(10);
 						if(vnd_userial.fw_op_baudrate != vnd_userial.bootrom_baudrate)
 						{
 							ALOGI("Raise host and controller baud rates to %d",vnd_userial.fw_op_baudrate);
@@ -690,6 +691,7 @@ void hw_config_cback(void *p_mem)
 						else
 						{
 							is_proceeding=1;
+							pwr_dev_deliver_event(CHIP_ALLOW_SLEP_AFTER_BT_FW_DOWNLOAD);
 							bt_vendor_cbacks->fwcfg_cb(BT_VND_OP_RESULT_SUCCESS);
 						}
 						
@@ -714,25 +716,8 @@ void hw_config_cback(void *p_mem)
 			       		is_proceeding=bt_vendor_cbacks->xmit_cb(HCI_RESET, p_buf, hw_config_cback);
 					}
 					
-	        		}
-				else
-				{
-					is_proceeding=1;
-					ALOGI("vnd_userial.android_bt_fw_download= 0");
-				   	 ALOGI("Bluetooth Firmware and smd is initialized");
-					ALOGI("Atmel: local bd address: %02x:%02x:%02x:%02x:%02x:%02x:", 
-						vnd_local_bd_addr[0],vnd_local_bd_addr[1],vnd_local_bd_addr[2],
-						vnd_local_bd_addr[3],vnd_local_bd_addr[4],vnd_local_bd_addr[5]);
-					if(vnd_userial.enable_bdaddress_change != 0)
-					{
-								
-						is_proceeding=hw_config_set_bdaddr(vnd_userial.bd_addr);
-										
-					}
-					else
-						bt_vendor_cbacks->fwcfg_cb(BT_VND_OP_RESULT_SUCCESS);
+	        		
 		
-				}
         		}
 			break;
             case HW_CFG_SET_UART_BAUD_1:
@@ -972,6 +957,7 @@ void hw_config_cback(void *p_mem)
 					 * before sending down any HCI command.
 					 */
 					ms_delay(look_up_fw_settlement_delay());
+					pwr_dev_deliver_event(CHIP_ALLOW_SLEP_AFTER_BT_FW_DOWNLOAD);
 					bt_vendor_cbacks->fwcfg_cb(BT_VND_OP_RESULT_SUCCESS);
 
 					hw_cfg_cb.fw_dl_progress = 0;
@@ -1004,6 +990,7 @@ void hw_config_cback(void *p_mem)
 			}
 			else
 			{
+				pwr_dev_deliver_event(CHIP_ALLOW_SLEP_AFTER_BT_FW_DOWNLOAD);
 				bt_vendor_cbacks->fwcfg_cb(BT_VND_OP_RESULT_SUCCESS);
 				is_proceeding=1;
 			}
@@ -1122,6 +1109,7 @@ void hw_config_cback(void *p_mem)
 				
 				ALOGI("bt vendor lib config callback (HW_CFG_SET_BD_ADDR)");
 				bt_vendor_cbacks->dealloc(p_buf);
+				pwr_dev_deliver_event(CHIP_ALLOW_SLEP_AFTER_BT_FW_DOWNLOAD);
 				bt_vendor_cbacks->fwcfg_cb(BT_VND_OP_RESULT_SUCCESS);
 
                 hw_cfg_cb.state = 0;
@@ -1189,6 +1177,8 @@ void hw_config_cback(void *p_mem)
         {
             if (p_buf != NULL)
                 bt_vendor_cbacks->dealloc(p_buf);
+
+			pwr_dev_deliver_event(CHIP_ALLOW_SLEP_AFTER_BT_FW_DOWNLOAD);		
 
             bt_vendor_cbacks->fwcfg_cb(BT_VND_OP_RESULT_FAIL);
         }
@@ -1329,55 +1319,83 @@ void hw_config_start(void)
 	uart_close=0;
 
 	strcpy(hw_cfg_cb.local_chip_name, AT_CHIP_NAME);
-
-	
+	if(vnd_userial.android_bt_fw_download_uart !=0)
 	{
-		
-		 /* Must make sure serial port is open because /external/bluetooth/bluedroid/hci/src/bt_hci_bdroid.c 
-		 don't check for userial_vendor_open() return, so if open failed, it will still call hw_config_start() */ 
-		if(vnd_userial.fd == -1)
-		{
-			ALOGE("vendor lib fw conf aborted. serial port not open");
-			bt_vendor_cbacks->fwcfg_cb(BT_VND_OP_RESULT_FAIL);
-		}
-		else if(hw_cfg_cb.state != 0)
-		{
-			// Download in progress... don't interrupt
-			AT_DBG("Download in progress, don't interrupt!");
-			return;
-		}
-		else
-		{
-			if (bt_vendor_cbacks)		
-				p_buf = (HC_BT_HDR  *)bt_vendor_cbacks->alloc(BT_HC_HDR_SIZE + \
-	                                                       HCI_CMD_MAX_LEN );
-			if (p_buf)
-			{
-				/*send read_local_version command to check if firmware is already downloaded*/
-				p_buf->event = MSG_STACK_TO_HC_HCI_CMD;
-	       		p_buf->offset = 0;
-	       		p_buf->layer_specific = 0;
-	       		p_buf->len = HCI_CMD_PREAMBLE_SIZE;
-	
-	       		p = (uint8_t *) (p_buf + 1);
-	       		UINT16_TO_STREAM(p, HCI_READ_LOCAL_VERSION);
-	      			*p = 0; /* parameter length */
 
-				hw_cfg_cb.state = HW_CFG_CHECK_BOOTROM;
-				set_bt_fw_downlading(1);
-			
-				ALOGI("[Atmel %s] sending read local version command",__func__);
-	       		bt_vendor_cbacks->xmit_cb(HCI_READ_LOCAL_VERSION, p_buf, hw_config_cback);
+		if(!pwr_dev_deliver_event(CHIP_WAKEUP_FOR_BT_FW_DOWNLOAD))
+		{	
+		
+			/* Must make sure serial port is open because /external/bluetooth/bluedroid/hci/src/bt_hci_bdroid.c 
+			 don't check for userial_vendor_open() return, so if open failed, it will still call hw_config_start() */ 
+			if(vnd_userial.fd == -1)
+			{
+				ALOGE("vendor lib fw conf aborted. serial port not open");
+				pwr_dev_deliver_event(CHIP_ALLOW_SLEP_AFTER_BT_FW_DOWNLOAD);
+				bt_vendor_cbacks->fwcfg_cb(BT_VND_OP_RESULT_FAIL);
+			}
+			else if(hw_cfg_cb.state != 0)
+			{
+				// Download in progress... don't interrupt
+				AT_DBG("Download in progress, don't interrupt!");
+				return;
 			}
 			else
 			{
-				if (bt_vendor_cbacks)
-	        		{
-	        			ALOGE("vendor lib fw conf aborted [no buffer]");
-					bt_vendor_cbacks->fwcfg_cb(BT_VND_OP_RESULT_FAIL);
-	        		}
+				if (bt_vendor_cbacks)		
+					p_buf = (HC_BT_HDR  *)bt_vendor_cbacks->alloc(BT_HC_HDR_SIZE + \
+		                                                       HCI_CMD_MAX_LEN );
+				if (p_buf)
+				{
+					/*send read_local_version command to check if firmware is already downloaded*/
+					p_buf->event = MSG_STACK_TO_HC_HCI_CMD;
+		       		p_buf->offset = 0;
+		       		p_buf->layer_specific = 0;
+		       		p_buf->len = HCI_CMD_PREAMBLE_SIZE;
+		
+		       		p = (uint8_t *) (p_buf + 1);
+		       		UINT16_TO_STREAM(p, HCI_READ_LOCAL_VERSION);
+		      			*p = 0; /* parameter length */
+
+					hw_cfg_cb.state = HW_CFG_CHECK_BOOTROM;
+					set_bt_fw_downlading(1);
+				
+					ALOGI("[Atmel %s] sending read local version command",__func__);
+		       		bt_vendor_cbacks->xmit_cb(HCI_READ_LOCAL_VERSION, p_buf, hw_config_cback);
+				}
+				else
+				{
+					pwr_dev_deliver_event(CHIP_ALLOW_SLEP_AFTER_BT_FW_DOWNLOAD);
+					if(bt_vendor_cbacks)
+		        	{
+		        		ALOGE("vendor lib fw conf aborted [no buffer]");
+						bt_vendor_cbacks->fwcfg_cb(BT_VND_OP_RESULT_FAIL);
+		        	}
+				}
 			}
 		}
+		else
+		{
+			ALOGE("Chip wake up failed");
+			bt_vendor_cbacks->fwcfg_cb(BT_VND_OP_RESULT_FAIL);
+		}
+	}
+	else
+	{
+		ms_delay(5); //"BUG 1028" Delay required to avoid BT hang after callback sending
+	
+	
+		ALOGI("vnd_userial.android_bt_fw_download= 0");
+	   	ALOGI("Bluetooth Firmware and smd is initialized");
+		ALOGI("Atmel: local bd address: %02x:%02x:%02x:%02x:%02x:%02x:", 
+			vnd_local_bd_addr[0],vnd_local_bd_addr[1],vnd_local_bd_addr[2],
+			vnd_local_bd_addr[3],vnd_local_bd_addr[4],vnd_local_bd_addr[5]);
+		if(vnd_userial.enable_bdaddress_change != 0)
+		{
+			is_proceeding=hw_config_set_bdaddr(vnd_userial.bd_addr);
+		}
+		else
+			bt_vendor_cbacks->fwcfg_cb(BT_VND_OP_RESULT_SUCCESS);
+			
 	}
 
 }
@@ -1433,6 +1451,7 @@ static uint8_t hw_config_reset(void)
 	if(vnd_userial.fd == -1)
 	{
 		ALOGE("vendor lib fw conf aborted. serial port not open");
+		pwr_dev_deliver_event(CHIP_ALLOW_SLEP_AFTER_BT_FW_DOWNLOAD);
 		bt_vendor_cbacks->fwcfg_cb(BT_VND_OP_RESULT_FAIL);
 	}
 	else
@@ -1461,6 +1480,15 @@ static uint8_t hw_config_reset(void)
 			is_proceeding = bt_vendor_cbacks->xmit_cb(HCI_VSC_UPDATE_BAUDRATE, \
 	                                                p_buf, hw_config_cback);
 				
+		}
+		else
+		{
+			pwr_dev_deliver_event(CHIP_ALLOW_SLEP_AFTER_BT_FW_DOWNLOAD);
+			if(bt_vendor_cbacks)
+		    {
+		    	ALOGE("vendor lib fw conf aborted [no buffer]");
+				bt_vendor_cbacks->fwcfg_cb(BT_VND_OP_RESULT_FAIL);
+		    }
 		}
 	}
 

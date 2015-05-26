@@ -37,11 +37,6 @@
 #include "userial.h"
 #include "userial_vendor.h"
 #include <linux/serial_core.h>
-//serial.h to get struct serial_struct. Include dependent on the kernel's locaiton to avoid copying
-// the struct definition, then have logical errors in case the header was changed in the kernel
-//#include "../../../../../../../a31/lichee/linux-3.3/include/linux/serial.h"
-//#include "../../../../../../linux-at91/include/uapi/linux/serial.h"
-//#include "../../../../../../linux-at91/include/uapi/linux/tty_flags.h"
 #include "at_log.h"
 
 /******************************************************************************
@@ -237,12 +232,7 @@ void userial_vendor_init(void)
 	vnd_userial.is_powersave_enabled = 0;
 	vnd_userial.powersave_timeout = 50;
 	vnd_userial.actual_baud=0;
-	if((vnd_userial.android_bt_fw_download_uart == 1) && 
-		(vnd_userial.android_bt_fw_download_sdio == 1))
-	{
-		ALOGW("Both download using UART and download using SDIO can't be enabled at the same time. Will use download from SDIO\n");
-		vnd_userial.android_bt_fw_download_uart;
-	}
+	
 }
 #if 1
 #define ASYNCB_SPD_HI		 4 /* Use 56000 instead of 38400 bps */

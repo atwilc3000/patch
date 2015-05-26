@@ -65,7 +65,8 @@
 #define AT_CMD_POWER_UP			"BT_POWER_UP"
 #define AT_CMD_DOWNLOAD_FW		"BT_DOWNLOAD_FW"
 #define AT_CMD_POWER_DOWN		"BT_POWER_DOWN"
-
+#define AT_CMD_CHIP_WAKE_UP		"BT_FW_CHIP_WAKEUP"
+#define AT_CMD_CHIP_ALLOW_SLEEP	"BT_FW_CHIP_ALLOW_SLEEP"
 
 /******************************************************************************
 **  Static variables
@@ -302,3 +303,75 @@ void upio_set(uint8_t pio, uint8_t action, uint8_t polarity)
             break;
     }
 }
+
+
+/*******************************************************************************
+**
+** Function        pwr_dev_deliver_event
+**
+** Description    Interact with low layer driver to send events to power
+**                     device.
+**
+** Returns         0  : SUCCESS or Not-Applicable
+**                 <0 : ERROR
+**
+*******************************************************************************/
+
+int pwr_dev_deliver_event(int event)
+{
+    int sz;
+    int fd = -1;
+    int ret = -1;
+    char buffer = '0';
+
+	ALOGI("<Atmel: [%s] (%d) new power device event: %d>", __FUNCTION__, __LINE__, event);
+
+	fd = open(power_dev_path, O_WRONLY);
+	if (fd < 0)
+    {
+        ALOGE(" pwr_dev_deliver_event : open(%s) for write failed: %s (%d)",
+            power_dev_path, strerror(errno), errno);
+        return ret;
+    }
+	
+    switch(event)
+    {
+        case CHIP_WAKEUP_FOR_BT_FW_DOWNLOAD:
+		{
+			sz = write(fd, AT_CMD_CHIP_WAKE_UP, strlen(AT_CMD_CHIP_WAKE_UP));
+
+		    if (sz < 0) {
+		        ALOGE("pwr_dev_deliver_event : write(%s) failed: %s (%d)",
+		            AT_CMD_POWER_UP, strerror(errno),errno);
+		    }
+		    else
+			{
+				ret = 0;
+			}
+
+		}
+		break;
+
+        case CHIP_ALLOW_SLEP_AFTER_BT_FW_DOWNLOAD:
+		{
+			sz = write(fd, AT_CMD_CHIP_ALLOW_SLEEP, strlen(AT_CMD_CHIP_ALLOW_SLEEP));
+
+		    if (sz < 0) {
+		        ALOGE("pwr_dev_deliver_event : write(%s) failed: %s (%d)",
+		            AT_CMD_POWER_DOWN, strerror(errno),errno);
+		    }
+		    else
+			{
+				ret = 0;
+			}
+		}
+		break;
+		
+    }
+
+    if (fd >= 0)
+        close(fd);
+
+    return ret;
+}
+

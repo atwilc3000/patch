@@ -48,6 +48,12 @@ enum {
     UPIO_DEASSERT,
     UPIO_ASSERT
 };
+/*PWR_DEV signals*/
+enum {
+	CHIP_ALLOW_SLEP_AFTER_BT_FW_DOWNLOAD = 0,
+	CHIP_WAKEUP_FOR_BT_FW_DOWNLOAD
+};
+
 
 /******************************************************************************
 **  Extern variables and functions
@@ -102,6 +108,20 @@ int upio_set_bluetooth_power(int on);
 **
 *******************************************************************************/
 void upio_set(uint8_t pio, uint8_t action, uint8_t polarity);
+
+/*******************************************************************************
+**
+** Function        pwr_dev_deliver_event
+**
+** Description    Interact with low layer driver to send events to power
+**                     device.
+**
+** Returns         0  : SUCCESS or Not-Applicable
+**                 <0 : ERROR
+**
+*******************************************************************************/
+
+int pwr_dev_deliver_event(int event);
 
 #endif /* UPIO_H */
 

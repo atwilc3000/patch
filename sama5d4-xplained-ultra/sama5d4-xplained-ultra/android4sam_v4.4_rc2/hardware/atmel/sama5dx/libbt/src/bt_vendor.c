@@ -153,11 +153,11 @@ static int op(bt_vendor_opcode_t opcode, void *param)
                 else if (*state == BT_VND_PWR_ON)
                 {
 	                upio_set_bluetooth_power(UPIO_BT_POWER_ON);
-			if(vnd_userial.android_bt_fw_download_sdio != 0)
- 			{	
-	 			ms_delay(50);
-				upio_set_bluetooth_power(UPIO_BT_FIRMWARE_DOWNLOAD);
-				ms_delay(300);
+					if(vnd_userial.android_bt_fw_download_sdio != 0)
+					{	
+						ms_delay(50);
+						upio_set_bluetooth_power(UPIO_BT_FIRMWARE_DOWNLOAD);
+						ms_delay(300);
                 	}
                 }
             }
