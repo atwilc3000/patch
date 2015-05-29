@@ -83,6 +83,7 @@
 typedef struct
 {
     uint16_t fmt;       /* Data format */
+    uint8_t  baud;      /* Baud rate */
 } tUSERIAL_CFG;
 
 typedef enum {
@@ -163,6 +164,17 @@ void userial_vendor_close(void);
 **
 *******************************************************************************/
 void userial_vendor_set_baud(uint32_t userial_baud);
+
+/*******************************************************************************
+**
+** Function	   userial_vendor_set_baud_ctsrts
+**
+** Description	   Set new baud rate with cts rts
+**
+** Returns	   None
+**
+*******************************************************************************/
+void userial_vendor_set_baud_ctsrts(uint32_t userial_baud, char use_ctsrts);
 
 /*******************************************************************************
 **

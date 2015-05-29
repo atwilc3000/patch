@@ -70,6 +70,9 @@
 #ifndef BOOTROM_BAUD_RATE
 #define BOOTROM_BAUD_RATE           115200
 #endif
+#ifndef FW_DEFAULT_BAUD_RATE
+#define FW_DEFAULT_BAUD_RATE			115200
+#endif
 /* The millisecond delay pauses on HCI transport after firmware patches
  * were downloaded. This gives some time for firmware to restart with
  * patches before host attempts to send down any HCI commands.

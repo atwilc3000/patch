@@ -75,6 +75,7 @@ uint8_t vnd_local_bd_addr[6]={0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 static const tUSERIAL_CFG userial_init_cfg =
  {
     (USERIAL_DATABITS_8 | USERIAL_PARITY_NONE | USERIAL_STOPBITS_1),
+	USERIAL_BAUD_115200
  };
 
 /******************************************************************************
@@ -339,6 +340,10 @@ static int op(bt_vendor_opcode_t opcode, void *param)
 					hw_config_update_ctrl_baud_rate(vnd_userial.bootrom_baudrate , 0);
 					break;
 				}
+			}else if(vnd_userial.fw_op_baudrate != FW_DEFAULT_BAUD_RATE || vnd_userial.flow_control == 1){
+					uart_close=1;
+					hw_config_update_ctrl_baud_rate(FW_DEFAULT_BAUD_RATE , 0);
+					break;
 			}
 			bt_vendor_cbacks->epilog_cb(BT_VND_OP_RESULT_SUCCESS);
 		}

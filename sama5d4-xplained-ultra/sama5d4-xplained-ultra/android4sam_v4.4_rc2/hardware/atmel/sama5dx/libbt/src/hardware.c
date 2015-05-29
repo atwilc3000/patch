@@ -982,7 +982,7 @@ void hw_config_cback(void *p_mem)
 				uart_close=0;
 				break;
 			}
-			userial_vendor_set_baud(vnd_userial.actual_baud);
+			userial_vendor_set_baud_ctsrts(vnd_userial.actual_baud, vnd_userial.flow_control);
 			if(vnd_userial.enable_bdaddress_change != 0)
 			{
 				is_proceeding=hw_config_set_bdaddr(vnd_userial.bd_addr);
@@ -1317,6 +1317,7 @@ void hw_config_start(void)
     hw_cfg_cb.fw_fd = -1;
     hw_cfg_cb.f_set_baud_2 = FALSE;
 	uart_close=0;
+	uint32_t baud_rate;
 
 	strcpy(hw_cfg_cb.local_chip_name, AT_CHIP_NAME);
 	if(vnd_userial.android_bt_fw_download_uart !=0)
@@ -1389,7 +1390,13 @@ void hw_config_start(void)
 		ALOGI("Atmel: local bd address: %02x:%02x:%02x:%02x:%02x:%02x:", 
 			vnd_local_bd_addr[0],vnd_local_bd_addr[1],vnd_local_bd_addr[2],
 			vnd_local_bd_addr[3],vnd_local_bd_addr[4],vnd_local_bd_addr[5]);
-		if(vnd_userial.enable_bdaddress_change != 0)
+		if(vnd_userial.fw_op_baudrate != FW_DEFAULT_BAUD_RATE || vnd_userial.flow_control == 1)
+		{
+			ALOGI("Raise host and controller baud rates to %d",vnd_userial.fw_op_baudrate);
+			baud_rate=get_closest_baud_rate(vnd_userial.fw_op_baudrate,&vnd_userial.actual_baud);
+			is_proceeding=hw_config_update_ctrl_baud_rate(baud_rate,vnd_userial.flow_control);
+		}
+		else if(vnd_userial.enable_bdaddress_change != 0)
 		{
 			is_proceeding=hw_config_set_bdaddr(vnd_userial.bd_addr);
 		}

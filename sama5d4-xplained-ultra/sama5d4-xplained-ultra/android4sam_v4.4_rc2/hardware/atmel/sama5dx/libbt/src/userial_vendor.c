@@ -408,23 +408,17 @@ int userial_vendor_open(tUSERIAL_CFG *p_cfg)
 	}
 	else
 	{
-		baudrate=get_closest_baud_rate(vnd_userial.fw_op_baudrate,&vnd_userial.actual_baud);
+		if (!userial_to_tcio_baud(p_cfg->baud, &vnd_userial.actual_baud))
+		{
+			return -1;
+		}
 	}
     tcgetattr(vnd_userial.fd, &vnd_userial.termios);
     cfmakeraw(&vnd_userial.termios);
 
-	// Bootrom has flowcontrol disabled, and at close time flow control 
-	// will be disabled for the running FW for the next open
-    if((vnd_userial.android_bt_fw_download_uart != 0) | 
-		(vnd_userial.flow_control == 0))
-    {
-    	vnd_userial.termios.c_cflag |= (stop_bits);
-		vnd_userial.termios.c_cflag &= ~CRTSCTS;
-    }
-    else
-    {
-        vnd_userial.termios.c_cflag |= (CRTSCTS | stop_bits);
-    }
+    vnd_userial.termios.c_cflag |= (stop_bits);
+	vnd_userial.termios.c_cflag &= ~CRTSCTS;
+
     tcsetattr(vnd_userial.fd, TCSANOW, &vnd_userial.termios);
     tcflush(vnd_userial.fd, TCIOFLUSH);
 
@@ -499,6 +493,36 @@ void userial_vendor_set_baud(uint32_t baud)
 	cfsetispeed(&vnd_userial.termios, baud);
 	tcsetattr(vnd_userial.fd, TCSADRAIN, &vnd_userial.termios);//TCSADRAIN to wait until everything has been transmitted
 }
+
+/*******************************************************************************
+**
+** Function	   userial_vendor_set_baud_ctsrts
+**
+** Description	   Set new baud rate with cts rts
+**
+** Returns	   None
+**
+*******************************************************************************/
+void userial_vendor_set_baud_ctsrts(uint32_t baud, char use_ctsrts)
+{
+	int  count = 0;
+	while(count > 0)
+	{
+		ALOGI("Wait for serial Tx");
+		ms_delay(500);
+		ioctl (vnd_userial.fd, TIOCOUTQ, &count);
+	}	
+	if ( use_ctsrts == 0 ) {
+		vnd_userial.termios.c_cflag &= ~CRTSCTS;
+	}
+	else {
+		vnd_userial.termios.c_cflag |= CRTSCTS;
+	}
+	cfsetospeed(&vnd_userial.termios, baud);
+	cfsetispeed(&vnd_userial.termios, baud);	
+	tcsetattr(vnd_userial.fd, TCSADRAIN, &vnd_userial.termios);
+}
+
 
 /*******************************************************************************
 **
