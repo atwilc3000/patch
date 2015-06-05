@@ -29,5 +29,6 @@ endif
 ifeq ($(PREBUILD_FIRMWARE), wilc3000)
 	
 PRODUCT_COPY_FILES += \
-	$(LOCAL_PATH)/wilc3000.ko:system/lib/modules/wilc3000.ko
+	$(LOCAL_PATH)/wilc3000.ko:system/lib/modules/wilc3000.ko \
+	$(LOCAL_PATH)/at_pwr_dev.ko:system/lib/modules/at_pwr_dev.ko
 endif

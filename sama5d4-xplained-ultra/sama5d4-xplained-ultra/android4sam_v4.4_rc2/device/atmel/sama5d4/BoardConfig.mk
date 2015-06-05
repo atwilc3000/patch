@@ -71,8 +71,8 @@ ifeq ($(BOARD_WIFI_VENDOR), atmel)
 	BOARD_HOSTAPD_DRIVER        := NL80211
 	BOARD_HOSTAPD_PRIVATE_LIB   := lib_driver_cmd_nmc
 	
-	#WIFI_DRIVER_MODULE_NAME		:= "wilc3000"
-	#WIFI_DRIVER_MODULE_PATH		:= "/system/lib/modules/wilc3000.ko"
+	WIFI_DRIVER_MODULE_NAME		:= "wilc3000"
+	WIFI_DRIVER_MODULE_PATH		:= "/system/lib/modules/wilc3000.ko"
 	#WIFI_FIRMWARE_LOADER		:= ""
 	
 	BOARD_WLAN_DEVICE := wilc3000
