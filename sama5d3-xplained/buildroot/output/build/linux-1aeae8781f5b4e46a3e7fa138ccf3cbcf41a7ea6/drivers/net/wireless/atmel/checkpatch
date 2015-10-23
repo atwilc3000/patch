@@ -1,0 +1,36 @@
+#!/bin/sh
+
+BASE=$(pwd)
+FLIST=`find $BASE/wilc3000 | grep "\.[ch]$"`
+
+# use --terse flag for brief notifications for errors and warnings.
+# use -no-tree flag not specifying the Linux kernel tree.
+
+CHECKPATCH="$BASE/checkpatch.pl --terse -no-tree --strict --file"
+
+echo "Running checkpatch.pl on source files in $BASE"
+$CHECKPATCH $BASE/Makefile
+$CHECKPATCH $BASE/Kconfig
+
+$CHECKPATCH $BASE/wilc3000/Kconfig
+$CHECKPATCH $BASE/wilc3000/Makefile
+
+for f in $FLIST
+do 
+echo $f
+done
+
+for f in $FLIST
+do	
+	file=$f
+	if [ ! -e "$file" ]
+	then 
+		echo "$file doesn't exist.";echo
+		continue
+	fi
+
+	echo "*********************************"
+	$CHECKPATCH $file
+	echo
+
+done
