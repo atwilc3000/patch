@@ -1,0 +1,12 @@
+The checkpatch helps us check the Linux kernel coding styles of the wilc3000
+driver. Make sure the wilc3000 kernel driver complies to Linux kernel coding
+styles by running checkpatch. 
+
+Give a executable permission to checkpatch: 
+chmod +x checkpatch
+
+Then, check the directory recursively: 
+./checkpatch
+
+To redirect the outputs to the file, issue the following:
+./checkpatch > checkpatchresults
