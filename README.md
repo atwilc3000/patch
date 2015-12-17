@@ -11,6 +11,6 @@ This repository provides patch files for Android and Linux AT91 platforms to bri
 * SAM9CN11-EK, SAM9CN12-EK Linux platform
 * SAMA5D3-Xplained Linux platform
 
-See the [Quick Start Guide](https://github.com/atwilc3000/driver/wiki/quick-start-guide). Refer also to the [wiki](https://github.com/atwilc3000/driver/wiki) to find usefull instructions and information for wireless solutions. 
+See the [Quick Start Guide](https://github.com/wilc3000/driver/wiki/quick-start-guide). Refer also to the [wiki](https://github.com/wilc3000/driver/wiki) to find usefull instructions and information for wireless solutions. 
 
 For more information on Atmel SmartConnect, visit [Atmel SmartConnect](http://www.atmel.com/products/wireless/wifi/smart-connect.aspx).
